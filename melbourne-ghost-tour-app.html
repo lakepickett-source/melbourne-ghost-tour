@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melbourne Ghost Tour</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --night: #1A2A3A;
+            --amber: #D4A574;
+            --white: #F8F7F5;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, var(--night) 0%, #0F1922); color: var(--white); min-height: 100vh; padding: 1rem; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { color: var(--amber); margin-bottom: 0.5rem; font-size: 1.8rem; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 2rem 0; }
+        .stat { background: rgba(212, 165, 116, 0.1); padding: 1rem; border-radius: 8px; border: 1px solid var(--amber); text-align: center; }
+        .stat-label { font-size: 0.85rem; color: #C9A860; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.8rem; color: var(--amber); font-weight: bold; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        .btn { padding: 0.75rem 1.5rem; background: var(--amber); color: var(--night); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 0.5rem; }
+        .btn:hover { background: #C9A860; }
+        .start { text-align: center; }
+        .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 2rem 0; }
+        .mode-btn { padding: 1.5rem; background: linear-gradient(135deg, #2A3A4A 0%, #1A2A3A); border: 2px solid var(--amber); color: var(--white); border-radius: 8px; cursor: pointer; font-size: 1rem; }
+        .mode-btn:hover { background: var(--amber); color: var(--night); }
+        .question-area { background: rgba(42, 58, 74, 0.6); border: 1px solid var(--amber); border-radius: 8px; padding: 2rem; margin: 2rem 0; }
+        .question { font-size: 1.2rem; margin-bottom: 1.5rem; font-weight: 500; }
+        .options { display: flex; flex-direction: column; gap: 1rem; }
+        .option { padding: 1rem; background: rgba(107, 158, 127, 0.1); border: 2px solid #C9A860; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .option:hover:not(.disabled) { background: var(--amber); color: var(--night); }
+        .option.active { background: var(--amber); color: var(--night); }
+        .option.correct { background: #6B9E7F; }
+        .option.incorrect { background: #8B4545; }
+        .feedback { margin: 1rem 0; padding: 1rem; border-radius: 6px; text-align: center; font-weight: 500; display: none; }
+        .feedback.show { display: block; }
+        .feedback.correct { background: #6B9E7F; }
+        .feedback.incorrect { background: #8B4545; }
+        .progress { background: rgba(107, 158, 127, 0.2); height: 8px; border-radius: 4px; margin: 1rem 0; overflow: hidden; }
+        .progress-bar { background: var(--amber); height: 100%; transition: width 0.3s; }
+        .results { text-align: center; }
+        .score { font-size: 3rem; color: var(--amber); margin: 1rem 0; font-weight: bold; }
+        @media (max-width: 600px) { .modes { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Melbourne Ghost Tour</h1>
+            <p>Script Mastery</p>
+        </div>
+
+        <div id="startScreen" class="screen active">
+            <div class="start">
+                <h2 style="margin-bottom: 1rem; color: #C9A860;">Choose a Mode</h2>
+                <div class="modes">
+                    <button class="mode-btn" onclick="startMode('learn')"><strong>Learn</strong><br><small>All questions in order</small></button>
+                    <button class="mode-btn" onclick="startMode('drill')"><strong>Drill</strong><br><small>25 random</small></button>
+                    <button class="mode-btn" onclick="startMode('weak')"><strong>Weak Spots</strong><br><small>Review missed</small></button>
+                    <button class="mode-btn" onclick="startMode('checkpoint')"><strong>Checkpoint</strong><br><small>20-question test</small></button>
+                </div>
+                <div class="stats">
+                    <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="total">0</div></div>
+                    <div class="stat"><div class="stat-label">Answered</div><div class="stat-value" id="answered">0</div></div>
+                    <div class="stat"><div class="stat-label">Accuracy</div><div class="stat-value" id="accuracy">0%</div></div>
+                    <div class="stat"><div class="stat-label">Streak</div><div class="stat-value" id="streak">0</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="quizScreen" class="screen">
+            <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+            <p id="progressText" style="font-size: 0.9rem; color: #C9A860;"></p>
+            <div class="question-area">
+                <div class="question" id="question"></div>
+                <div class="options" id="options"></div>
+                <div id="feedback" class="feedback"></div>
+            </div>
+            <div style="text-align: center;">
+                <button class="btn" id="submitBtn" onclick="submit()">Submit</button>
+                <button class="btn" onclick="goBack()">Exit</button>
+            </div>
+        </div>
+
+        <div id="resultsScreen" class="screen">
+            <div class="results">
+                <h2>Complete!</h2>
+                <div class="score" id="score">0%</div>
+                <p><span id="correct">0</span> Correct | <span id="incorrect">0</span> Incorrect | Best Streak: <span id="bestStreak">0</span></p>
+                <button class="btn" onclick="goBack()">Back to Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const QUESTIONS = [
+            {stop: 'Melbourne Hotel', question: 'In what year was the Melbourne Hotel\'s grand opening?', options: ['1922', '1923', '1924', '1925'], correct: 2, explanation: 'The grand opening was on September 23, 1924.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What architectural style was the Melbourne Hotel built in?', options: ['Art Deco', 'Spanish Revival', 'Georgian', 'Victorian'], correct: 1, explanation: 'The hotel featured elegant Spanish Revival architecture.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What intersection did the Melbourne Hotel stand at?', options: ['Main and Front', 'Dixie Highway and Melbourne-Kissimmee', 'New Haven and Babcock', 'Vernon and New Haven'], correct: 1, explanation: 'At the intersection of the Dixie Highway and Melbourne-Kissimmee Highway.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'Who was Amelia?', options: ['A maid', 'A woman who waited for a ship\'s captain', 'A hotel owner', 'A dancer'], correct: 1, explanation: 'Amelia waited for a ship\'s captain until she died—or he drowned trying to return.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What ghost refuses to tolerate red silk linens?', options: ['Amelia', 'Timothy E. McGuire', 'Bob Gross', 'A flapper'], correct: 1, explanation: 'Timothy E. McGuire threatened to haunt the flapper hotel forever over his preference for white cotton sheets.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'On what date was the grand opening?', options: ['September 20, 1924', 'September 23, 1924', 'September 30, 1924', 'October 1, 1924'], correct: 1, explanation: 'September 23, 1924.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What did the hotel advertise itself as?', options: ['Modern and luxurious', 'Strictly fireproof with modern conveniences', 'The biggest in Florida', 'The finest dining'], correct: 1, explanation: 'Advertised as strictly fireproof with modern conveniences.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What rooftop feature hosted social events?', options: ['Observation deck', 'Garden with afternoon teas and dances', 'Bar and lounge', 'Tennis court'], correct: 1, explanation: 'The rooftop garden hosted afternoon teas, dances, and evening celebrations.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What happened to two people sitting outside the hotel?', options: ['They fell', 'They were struck by an automobile and killed', 'They got ill', 'They left town'], correct: 1, explanation: 'Two people sitting on a bench outside were struck by an automobile and killed.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What businesses occupied the ground floor?', options: ['Pharmacy only', 'Pharmacy, barber shop, bar, taxi dispatch', 'Bank and store', 'Restaurant and offices'], correct: 1, explanation: 'Pharmacy, barber shop, Manhattan Bar, taxi dispatch office, and other businesses.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'When was it restored as the 1900 Building?', options: ['1980', '1982', '1984', '1985'], correct: 3, explanation: 'In 1985, it reopened as the 1900 Building after restoration by Harry and Wendy Brandon.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What was buried beneath the west courtyard?', options: ['Newspaper archive', 'Time capsule', 'Blueprints', 'Gold coins'], correct: 1, explanation: 'A time capsule was buried with instructions to remain sealed until 2045.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Who restored the building in the 1980s?', options: ['Historical Society', 'Harry and Wendy Brandon', 'City government', 'NY developer'], correct: 1, explanation: 'Harry and Wendy Brandon undertook the ambitious restoration.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What did restorers uncover?', options: ['Secret passages', 'Long-covered windows and original details', 'Treasures', 'Sealed chambers'], correct: 1, explanation: 'They reopened windows and uncovered architectural details.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What did contractor Ken hear on the second floor?', options: ['Music', 'Footsteps and doors opening with no one there', 'Children laughing', 'Woman screaming'], correct: 1, explanation: 'Ken heard someone walking then a door open and close despite being alone.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What did a realtor maintain about the building?', options: ['Completely safe', 'Houses many spirits not just one', 'Needs more work', 'One ghost only'], correct: 1, explanation: 'A realtor stated she believed the building housed many spirits.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'How many stories was the foundation designed to support?', options: ['Two', 'Four', 'Six', 'Eight'], correct: 2, explanation: 'The foundation was engineered to support six additional stories.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What kind of sheets did Timothy McGuire prefer?', options: ['Any kind', 'Red and blue', 'White cotton', 'Colored linens'], correct: 2, explanation: 'McGuire preferred crisp white cotton sheets and was furious at silk replacements.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What amenity advertised at the hotel was unusual?', options: ['Pool', 'Ice machine', 'Telegraph office', 'Elevator'], correct: 2, explanation: 'Advertised as having its own telegraph office.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What spirit allegedly walked the second floor during restoration?', options: ['Amelia', 'Timothy McGuire', 'Unknown man', 'Woman in white'], correct: 1, explanation: 'Contractor Ken heard someone walking and doors opening on the second floor.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What did the time capsule contain?', options: ['It\'s unknown', 'Instructions to remain sealed until 2045', 'Blueprints', 'No one knows'], correct: 0, explanation: 'The time capsule remains sealed with instructions not to open until 2045.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'How is the building commonly known today?', options: ['The Haunt', 'The 1900 Building', 'Melbourne Plaza', 'The Brandon Hotel'], correct: 1, explanation: 'After restoration, it reopened as the 1900 Building.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What\'s the most famous ghost story from the hotel?', options: ['Money hidden in walls', 'A ship captain never returning for his love', 'A robbery', 'A fire'], correct: 1, explanation: 'The most referenced ghost is Amelia who waited for a ship\'s captain.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Who designed the hotel?', options: ['Frank Lloyd Wright', 'James McLaughlin', 'Unknown architect', 'Local builder'], correct: 1, explanation: 'The hotel was designed by James McLaughlin.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What floor did the ghost stories concentrate on?', options: ['First', 'Second', 'Third', 'Basement'], correct: 1, explanation: 'Most activity was reported on the second floor.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What was Bob Gross profession?', options: ['Banker', 'Paleontologist and archaeologist', 'Lawyer', 'Doctor'], correct: 1, explanation: 'Bob Gross was a paleontologist and archaeologist.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What field discovery was associated with Bob Gross?', options: ['Dinosaur bones', 'Native artifacts', 'Ice Age mammoth bones', 'Gold'], correct: 2, explanation: 'Bob Gross worked at South Indian Field discovering Ice Age mammoth bones.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What were found in the building initially?', options: ['Treasure', 'Bones from the Ice Age', 'Money', 'Documents'], correct: 1, explanation: 'The building site had paleontological significance with bone discoveries.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'How long has the building stood?', options: ['50+ years', 'Nearly 100 years', '150+ years', 'Just decades'], correct: 1, explanation: 'The hotel opened in 1924, making it nearly 100 years old.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What amenity was on the roof?', options: ['Swimming pool', 'Garden for social events', 'Bar', 'Observation platform'], correct: 1, explanation: 'The rooftop garden hosted social events and celebrations.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What does the script say about legends?', options: ['All false', 'Legends reveal what towns value', 'Not important', 'Purely fiction'], correct: 1, explanation: 'A legend a town keeps tells much about that town.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'Who witnessed phenomena during restoration?', options: ['Nobody', 'Contractor Ken and others', 'Only workers', 'No documentation'], correct: 1, explanation: 'During restoration, contractor Ken witnessed footsteps and door activity.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What makes hauntings interesting?', options: ['Fear only', 'That people testify despite skepticism', 'Entertainment', 'Mystery'], correct: 1, explanation: 'People willing to describe experiences despite how it sounds.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'How many rooms did the hotel have?', options: ['50', 'Over 75', '100+', 'Unclear'], correct: 2, explanation: 'The hotel had extensive room capacity.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What was special about the hotel design?', options: ['Simple', 'Unusually fireproof for its era', 'Large windows', 'Open concept'], correct: 1, explanation: 'The hotel was specifically built to be strictly fireproof.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What business competed with the hotel?', options: ['Another hotel', 'Boarding houses', 'Dormitories', 'None significant'], correct: 1, explanation: 'One of the first hotels built for travelers of ordinary means in the area.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What did visitors appreciate about the location?', options: ['Downtown center', 'On river', 'By railroad', 'Highway accessible'], correct: 3, explanation: 'The location at the Dixie Highway was central to travelers.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What floor did Amelia haunt?', options: ['First', 'Second', 'Third', 'All'], correct: 1, explanation: 'Amelia\'s presence was noted primarily on the second floor.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What emotion did Timothy McGuire display?', options: ['Sadness', 'Anger over linens', 'Joy', 'Confusion'], correct: 1, explanation: 'McGuire was extremely particular and angry about his bedding preferences.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'How did the hotel survive?', options: ['Burned down', 'Still stands after restoration', 'Demolished', 'Converted to apartments'], correct: 1, explanation: 'The hotel survived and was restored as the 1900 Building.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What makes this ghost story unique?', options: ['Only one ghost', 'Multiple personalities and stories across decades', 'No evidence', 'Recently discovered'], correct: 1, explanation: 'Multiple spirits with distinct personalities and preferences.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What would travelers do here?', options: ['Just sleep', 'Eat, sleep, socialize, conduct business', 'Work only', 'Party'], correct: 1, explanation: 'Hotel was center of social and business activity.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What year did the hotel close originally?', options: ['Never', 'Eventually declined but location lasted', 'Early 1950s', 'After restoration'], correct: 1, explanation: 'The building adapted through decades until restoration in 1985.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What does Amelia\'s ghost story suggest?', options: ['Regret', 'Unfinished business with lost love', 'Anger', 'Sadness'], correct: 1, explanation: 'Her continued presence suggests love and longing never resolved.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'Why stay at this hotel?', options: ['Best price', 'Historical significance and paranormal intrigue', 'Only option', 'Great dining'], correct: 1, explanation: 'Combines history, restoration quality, and ghostly legend.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'What attracts paranormal researchers?', options: ['Nothing', 'Multiple documented witness reports over years', 'Rumors only', 'Recent claims'], correct: 1, explanation: 'Decades of consistent reports from different sources.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'What time of day is activity highest?', options: ['Daytime', 'Evening and night when few guests', 'Random', 'Not specified'], correct: 1, explanation: 'Activity typically during restoration and quiet hours.', difficulty: 2},
+            {stop: 'Fee & Stewart', question: 'What year did Charles Stewart arrive in Melbourne?', options: ['1886', '1888', '1890', '1892'], correct: 1, explanation: 'Charles Stewart arrived in Florida in 1888.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'How long did Charles Stewart run his drug store alone?', options: ['5 years', '10 years', '15 years', '20 years'], correct: 1, explanation: 'Charles Stewart ran his drug store alone for 10 years before partnering with Frank Fee.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'Who partnered with Charles Stewart?', options: ['Frank Fee', 'Joe Masch', 'E.P. Branch', 'Henry Flagler'], correct: 0, explanation: 'Charles Stewart partnered with Frank Fee.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'What multiple services were offered at Fee and Stewart?', options: ['Hardware only', 'Hardware, pharmacy, furniture, funeral services', 'Just pharmacy', 'Restaurant and bar'], correct: 1, explanation: 'They ran hardware, pharmacy, furniture, and funeral services all at the same address.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'How was Mabel Stewart described?', options: ['A teacher', 'An extraordinary pianist', 'A painter', 'A nurse'], correct: 1, explanation: 'Mabel Stewart was an extraordinary pianist.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Who would visit to hear Mabel play piano?', options: ['Tourists', 'Seminole visitors', 'School children', 'Local merchants'], correct: 1, explanation: 'Seminole visitors came to the warehouse to hear Mabel play.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'What year were records on site?', options: ['1885', '1888', '1892', '1898'], correct: 3, explanation: 'Records from the business location date back to 1898.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'What important service did they provide before modern practices?', options: ['Surgery', 'Pharmacy', 'Embalming before immediate burial', 'Banking'], correct: 2, explanation: 'Before embalming was routine, families buried immediately; their service was vital.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'What was found under the floorboards?', options: ['Bones', 'Receipts, bottles, coins, and mortuary tools', 'Jewelry', 'Money'], correct: 1, explanation: 'Under floorboards: receipts, bottles, an 1848 coin, mortuary and embalming tools.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'Who was Ethel Allen?', options: ['A customer', 'Mabel\'s friend', 'A body prepared for burial there', 'A servant'], correct: 2, explanation: 'Ethel Allen\'s body was prepared there; her ghost appears at Ashley\'s restaurant in Rockledge.', difficulty: 2},
+            {stop: 'Crane Creek Railway', question: 'What year did Flagler\'s railroad arrive?', options: ['1891', '1892', '1893', '1895'], correct: 2, explanation: 'On Monday, July 3rd, 1893, the first locomotive arrived.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Who was Peter Wright?', options: ['A railroad engineer', 'A freedman who arrived in 1867 as a sailing mailman', 'A plantation owner', 'A merchant'], correct: 1, explanation: 'Peter Wright, the sailing mailman, arrived in 1867 from Quitman Georgia.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'When was Greater Allen AME Chapel founded?', options: ['1882', '1885', '1888', '1890'], correct: 1, explanation: 'Founded in 1885 at Wright Brothers\' dining table.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'What was the first democratic institution?', options: ['Church', 'School', 'Bank', 'Town hall'], correct: 2, explanation: 'The bank was established first among founding institutions.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'How many founding institutions in 48 hours?', options: ['One', 'Two', 'Three—bank, church, railroad', 'Four'], correct: 2, explanation: 'Three founding institutions: bank (Saturday), Church (Sunday), railroad (Monday).', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'When was Melbourne renamed?', options: ['1893', '1894', '1895', '1896'], correct: 1, explanation: 'In 1894, renamed Melbourne after Cornthwaite John Hector from Melbourne, Australia.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Who was Melbourne named after?', options: ['Queen Victoria', 'Cornthwaite John Hector', 'Henry Flagler', 'E.P. Branch'], correct: 1, explanation: 'Named after Cornthwaite John Hector, who was from Melbourne, Australia.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What was convict leasing?', options: ['Prison system', 'Renting imprisoned laborers to work', 'Labor union', 'Work release program'], correct: 1, explanation: 'Convict leasing: Florida shut penitentiary 1877; leasing was more profitable than running prison.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What laws targeted freedmen?', options: ['Voting rights', 'Vagrancy and loitering', 'Housing', 'Employment'], correct: 1, explanation: 'Vagrancy/loitering laws captured freedmen for work camps.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What was the diet like?', options: ['Meat and bread', 'Cornmeal, salt pork, molasses', 'Rice and beans', 'Vegetables'], correct: 1, explanation: 'Wooden stockades, cornmeal/salt pork/molasses diet, malaria/dysentery/heat exhaustion.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'How much did Flagler pay per laborer monthly?', options: ['$5', '$2.50', '$10', '$1'], correct: 1, explanation: 'Flagler paid $2.50/month per laborer (under $100 in today\'s money).', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What was the sundown rule?', options: ['No travel after dark', 'Darker-skinned people had to cross bridge by dark', 'Curfew for all', 'Prison rule'], correct: 1, explanation: 'Sundown rule: darker-skinned people had to cross bridge by dark.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What was lost near Eau Gallie?', options: ['Diamond ring', 'Flagler\'s gold pocket watch', 'Boat', 'Documents'], correct: 1, explanation: 'Flagler\'s gold pocket watch lost near Eau Gallie.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What ghost appears at the water\'s edge?', options: ['Woman in white', 'Dignified man looking down, then gone', 'Child', 'Soldier'], correct: 1, explanation: 'Ghost: dignified man at water\'s edge looking down, then gone; faint ticking of pocket watch.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What was heard near the ghost?', options: ['Footsteps', 'Faint ticking of pocket watch', 'Voices', 'Bells'], correct: 1, explanation: 'Faint ticking of pocket watch heard near the apparition.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'What happened in 1924?', options: ['Fire', 'Truck hit by train at trestle', 'Storm', 'Flood'], correct: 1, explanation: '1924: truck hit by train—driver couldn\'t hear engine or gong; barely survived.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What tragedy happened on the trestle?', options: ['Derailment', 'Three teenage girls died in 2010', 'Accident in 1920s', 'Equipment failure'], correct: 1, explanation: '2010: three teenage girls died on trestle.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What did EVP recordings capture?', options: ['"Hello there"', '"He\'s here," "be patient," "leave," and possibly "sandwich"', '"Help us"', '"Who\'s there"'], correct: 1, explanation: 'EVP recordings: "he\'s here," "be patient," "leave," and something like "sandwich."', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What type of voices were recorded?', options: ['Only male', 'Hostile male voice with female voices confirming', 'Only female', 'Children'], correct: 1, explanation: 'Hostile male voice during investigation; female voices confirming on separate recorder.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Who was William Rufus Brothers?', options: ['Railroad worker', 'First Black child born in Melbourne', 'Freed slave', 'Settler'], correct: 1, explanation: 'William Rufus Brothers: first Black child born in Melbourne; first to attend integrated school.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What three exits from convict camps existed?', options: ['Freedom, escape, death', 'Escape, serve sentence, die', 'Release, transfer, escape', 'Pardon, death, escape'], correct: 1, explanation: 'Three exits: escape, serve sentence, die.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Were investment made in keeping convicts alive?', options: ['Yes', 'No—get replacement; no investment', 'Some investment', 'Occasionally'], correct: 1, explanation: 'No investment to keep alive—get replacement.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'How did Florida\'s convict leasing end?', options: ['Gradually', 'Still ongoing', 'Regulated over time', 'Formally shut down by legislature'], correct: 3, explanation: 'Florida officially shut down convict leasing system.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Why was convict leasing profitable?', options: ['Cheap labor', 'More profitable than running penitentiary', 'Government contracts', 'No oversight'], correct: 1, explanation: 'Leasing more profitable than maintaining state penitentiary.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Who benefited from freed peoples\'s labor?', options: ['The state', 'Private contractors and employers', 'Churches', 'Schools'], correct: 1, explanation: 'Freed people\'s labor was leased to private interests.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What natural feature is here?', options: ['River', 'Crane Creek—natural crossing pre-dating city', 'Lake', 'Swamp'], correct: 1, explanation: 'Crane Creek: natural crossing pre-dating city.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Who founded Greater Allen?', options: ['E.P. Branch', 'Wright Brothers', 'Flagler', 'Stewart'], correct: 1, explanation: 'Wright Brothers founded Greater Allen AME Chapel.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'What was E.P. Branch\'s role?', options: ['Banker', 'Spent months in NYC making Melbourne\'s case to Flagler', 'Conductor', 'Businessman'], correct: 1, explanation: 'E.P. Branch spent months in NYC making Melbourne\'s case to Flagler.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What does the script say about this location?', options: ['Only history', 'History of resilience, racism, and spirits that won\'t leave', 'Just transportation', 'Forgotten'], correct: 1, explanation: 'Layer of history—both settlement and the cost to those forced to build it.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'How does the paranormal connect?', options: ['Unrelated', 'Those lost might remain—witness to history', 'All hauntings same', 'Random'], correct: 1, explanation: 'The spirits may be connected to those who suffered and disappeared.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What makes this stop significant?', options: ['Single event', 'Marks where city was founded and convict labor forced', 'Small history', 'Modern'] , correct: 1, explanation: 'Marks both city foundation and darker history of forced labor.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'What will visitors learn?', options: ['Ghost story only', 'How city was built—at whose cost', 'Train facts', 'Nothing significant'], correct: 1, explanation: 'Visitors learn Melbourne\'s founding and the people whose work built it.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Who maintains this history?', options: ['Nobody', 'Melbourne Founders Museum and Greater Allen Development Corporation', 'State', 'Private museum'], correct: 1, explanation: 'Melbourne Founders Museum and Greater Allen Development Corporation keep history alive.', difficulty: 2},
+            {stop: 'The Myles Building', question: 'In what year was the Myles Building constructed?', options: ['1910', '1913', '1915', '1920'], correct: 1, explanation: 'The building was constructed in 1913 by developer William Myles.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Who built the Myles Building?', options: ['E.P. Branch', 'William Myles', 'Joe Masch', 'Cora Gray'], correct: 1, explanation: 'Local developer William Myles constructed the building.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What was on the first floor initially?', options: ['Bank', 'Restaurant and billiard parlor', 'General store', 'Pharmacy'], correct: 1, explanation: 'The first floor held a restaurant and a billiard parlor.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What became the upstairs when it opened?', options: ['Offices', 'Hotel Melbourne with 15 rooms', 'Apartments', 'Storage'], correct: 1, explanation: 'The entire upstairs became the Hotel Melbourne—later called Midway Hotel.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'When did the Midway Hotel open?', options: ['October 1, 1913', 'October 1, 1915', 'October 1, 1920', 'October 1, 1922'], correct: 1, explanation: 'When opened on October 1, 1915, the Melbourne newspaper welcomed it.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'How many rooms did the Midway Hotel have?', options: ['10', '15', '20', '25'], correct: 1, explanation: 'The second floor had roughly 2,400 square feet turned into 15 rooms.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What did the Midway Hotel charge per night?', options: ['50 cents', 'One to one and a half dollars', 'Two to three dollars', 'Five dollars'], correct: 1, explanation: 'Rooms went for a dollar to a dollar fifty a night.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'Who leased the Midway Hotel?', options: ['William Myles', 'George and Mrs. George B. Ott', 'Joe Masch', 'The bank'], correct: 1, explanation: 'George and Mrs. George B. Ott leased the entire second floor.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What type of travelers was the hotel built for?', options: ['Wealthy only', 'Ordinary means—salesmen, tourists, families', 'Businessmen only', 'Railroad executives'], correct: 1, explanation: 'One of the first hotels built specifically for travelers of ordinary means.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Why did the Melbourne Times move to the building?', options: ['Expansion', 'Their old location on Front Street burned', 'Lower rent', 'Permanent relocation'], correct: 1, explanation: 'Their old location on Front Street had burned; the new building offered what they needed.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'How long did the Melbourne Times operate from this building?', options: ['1 year', '2 years', 'About 4 years', '10 years'], correct: 2, explanation: 'For about four years, the paper documenting town growth was written here.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'True or False: The building housed a school.', options: ['True', 'False'], correct: 0, explanation: 'Between 1916 and 1920, children attended school here alongside other businesses.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'When did William Myles sell the building?', options: ['1918', '1919', '1921', '1923'], correct: 2, explanation: 'By 1921, William Myles had sold to Joe Masch.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What new owner had the building next?', options: ['E.P. Branch', 'Joe Masch', 'Mrs. Cora B. Gray', 'The city'], correct: 2, explanation: 'By 1924, Mrs. Cora B. Gray owned it.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What modern amenities did the expanded inn have?', options: ['Gas lighting', 'Electric lighting, hot water, upstairs lobby', 'Telephone', 'Refrigeration'], correct: 1, explanation: 'Electric lighting, hot water, and lobby moved upstairs to accommodate bigger restaurant.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'How many rooms did the inn have by 1924?', options: ['15', '20', '25', '30'], correct: 1, explanation: 'By 1924, the old 15-room hotel became a 20-room inn.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'When did Melbourne vote itself dry?', options: ['1905', '1908', '1911', '1915'], correct: 2, explanation: 'Melbourne voted itself dry back in 1911, nearly a decade before national Prohibition.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What trick was used during Prohibition?', options: ['Hidden stills', 'Coffins with liquor from Cuba via Havana Special', 'Underground tunnels', 'Fake medicines'], correct: 1, explanation: 'Coffins came off Havana Special trains—some held caskets, others liquor—grief made good cover.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'When did Prohibition end?', options: ['1930', '1931', '1932', '1933'], correct: 3, explanation: 'When Prohibition ended in 1933, the old billiard hall reopened as Shorty\'s Bar.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What bar opened when Prohibition ended?', options: ['The Golden Room', 'Shorty\'s Bar', 'The Tavern', 'The Barrel'], correct: 1, explanation: 'The old billiard hall reopened as Shorty\'s Bar.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What unique detail tied the building\'s history together?', options: ['A portrait', 'The old school bell—called class, now signaled happy hour', 'A vintage sign', 'Historic photos'], correct: 1, explanation: 'The school bell that called children to class now rang at 5pm for happy hour.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What paranormal activity is current staff reporting?', options: ['Cold spots', 'Footsteps heard over music', 'Apparitions', 'Objects moving'], correct: 1, explanation: 'A current employee hears footsteps over music when closing up alone.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'How does the employee describe the footsteps?', options: ['"Creaking"', '"Loud enough to hear over music, I know what footsteps sound like"', '"Faint"', '"Scary"'], correct: 1, explanation: 'They said plainly: "I know what footsteps sound like," and these were clear.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What is the employee\'s response when hearing footsteps?', options: ['Runs away', 'Stops music and goes to look', 'Ignores it', 'Calls for help'], correct: 1, explanation: 'They stop and go look, but every time—there\'s no one there.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What additional story hasn\'t been documented yet?', options: ['A robbery', 'Wall sealed off with possible homicide connection', 'A ghost sighting', 'Missing persons'], correct: 1, explanation: 'A sealed bathroom section found during renovation—possible old homicide behind it—not yet documented.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'True or False: The old hotel rooms became apartments.', options: ['True', 'False'], correct: 0, explanation: 'Today the old hotel rooms upstairs have been converted into apartments.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What does the building represent?', options: ['Just history', 'Melbourne itself—growth, adaptation, multiple lives', 'Commerce only', 'Architecture'], correct: 1, explanation: 'Trace Melbourne\'s history from single address—it\'s adapted as town grew around it.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What might people hear in the halls?', options: ['"Welcome"', 'Footsteps echoing', '"Help"', '"Exit"'], correct: 1, explanation: 'Next time you walk past late at night, you might hear footsteps echoing.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'How long has this building stood on this spot?', options: ['Over 50 years', 'Over 100 years', 'Over 150 years', 'Since 1800'], correct: 1, explanation: 'Sanborn maps confirm it stood here in 1920—over 100 years.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'What type of people walked through hallways?', options: ['Mostly locals', 'Salesmen, tourists, railroad passengers, homesteaders, families', 'Only wealthy', 'Staff'], correct: 1, explanation: 'Traveling salesmen, tourists, railroad passengers, homesteaders, families arriving with everything.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What was served at happy hour?', options: ['Beer only', 'Bar drinks', 'Snacks', 'Food'], correct: 1, explanation: 'Happy hour at 5pm signaled by the bell.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'How many storefronts were on ground floor by 1924?', options: ['One', 'Two', 'Three', 'Four'], correct: 2, explanation: 'Three storefronts lined the ground floor—ladies\' shop, fruit store, lunch counter.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What happened during the Florida Land Boom?', options: ['Decline', 'Building grew with it', 'Stood still', 'Was demolished'], correct: 1, explanation: 'By 1924, under boom conditions, the building kept doing what it did—reinventing for need.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What makes this place special?', options: ['"Just old"', 'Lived within these walls—how spaces hold stories', '"Nothing"', '"Haunted"'], correct: 1, explanation: 'Places absorb the lives lived within them.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'How many years was the school bell used?', options: ['2-5 years', 'From 1916 until happy hour era in 1930s', '10+ years', 'Unknown'], correct: 1, explanation: 'Bell rang for school, then rang for happy hour—centuries in service.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What era followed the school use?', options: ['Decline', 'Commercial expansion and adaptability', 'Apartments', 'Offices'], correct: 1, explanation: 'After school, building continued evolving—hotel, newspaper, bar, apartments.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What story does the bell tell?', options: ['"Nothing"', 'Of Melbourne\'s shift from education to commerce to entertainment', '"Just a bell"', '"Lost history"'], correct: 1, explanation: 'School bell → happy hour bell = Melbourne growing up.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What can be inferred about staff comfort?', options: ['"Terrified"', 'Casual about footsteps—accepted as building\'s normalcy', '"Investigated"', '"Ignored"'], correct: 1, explanation: 'Staff don\'t seem frightened, just matter-of-fact about phenomena.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'How long was the building\'s peak commercial?', options: ['Brief', '1915-1950s actively commercial', '50+ years', 'Unclear'], correct: 1, explanation: 'Building thrived commercially through Prohibition and boom eras.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'What current use does the space have?', options: ['"Abandoned"', 'Apartments and commercial use', '"Museum"', '"For sale"'], correct: 1, explanation: 'Building still serves community in modern form.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Why would footsteps persist?', options: ['"Building settling"', 'Places hold rhythms of those who worked there—footsteps echo?', '"Pipes"', '"Wind"'], correct: 1, explanation: 'Maybe the footsteps are echoes of decades of foot traffic.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'Is the Myles Building still famous?', options: ['"No"', 'Not widely known but worth visiting for history', '"Very"', '"Somewhat"'], correct: 1, explanation: 'Unassuming building holding rich Melbourne history.', difficulty: 1},
+            {stop: 'The Salon of Miss Loré', question: 'What was Miss Loré\'s nationality?', options: ['Italian', 'Spanish', 'French', 'German'], correct: 2, explanation: 'Miss Loré was French, elegant in a way that made people straighten up.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Where is this stop located?', options: ['Downtown', 'Mr. Nice Guys, 905 E New Haven #100, built 1950', 'Beachfront', 'Shopping center'], correct: 1, explanation: 'Now Mr. Nice Guys at 905 E New Haven #100, built in 1950.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What kind of impression did Miss Loré make?', options: ['Warm', 'Elegant but cold and chilling', 'Forgettable', 'Average'], correct: 1, explanation: 'Unforgettable by every account, but not for warmth—remembered as cold and chilling presence.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'How did people feel around Miss Loré?', options: ['Comfortable', 'Just a little afraid', 'Welcomed', 'Indifferent'], correct: 1, explanation: 'People remembered being just a little afraid of her.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'What emotion did Miss Loré harbor?', options: ['Ambition', 'Joy', 'Resentment at being there daily', 'Pride'], correct: 2, explanation: 'She was not a woman who wanted to be there, day after day, behind a smile she\'d stopped meaning.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'Who was Barbara McGillicuddy?', options: ['Employee', 'Psychic who did cold reading', 'Customer', 'Owner'], correct: 1, explanation: 'A psychic named Barbara McGillicuddy did a cold reading of the building.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'What information was Barbara given beforehand?', options: ['Full history', 'Nothing—told nothing about salon, Miss Loré, or experiences', 'Some context', 'Previous readings'], correct: 1, explanation: 'She was told nothing beforehand, not about salon, Miss Loré, or what owners experienced.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What did Barbara sense about the woman there?', options: ['Happy', 'Deeply unhappy, dreading work, frustrated', 'Peaceful', 'Indifferent'], correct: 1, explanation: 'She felt a woman who had grown deeply unhappy, dreaded coming to work, frustration never left.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'What term did Barbara use for this type of energy?', options: ['Residual', 'Poltergeist—emotion with nowhere to go, strong enough to move things', 'Intelligent spirit', 'Vortex'], correct: 1, explanation: 'Poltergeist: emotion with nowhere to go, strong enough to move things in physical world.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What current paranormal phenomena happen in the building?', options: ['Cold spots', 'Doors open, merchandise leaps from shelves, objects move', 'Apparitions', 'Voices'], correct: 1, explanation: 'Doors open on their own, merchandise leaps from shelves and shatters, objects found elsewhere.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'What happens to items left in the salon?', options: ['Stolen', 'Found in different place next morning', 'Disappear', 'Damaged'], correct: 1, explanation: 'Objects left in one place at closing found somewhere else the next morning.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'True or False: Barbara\'s reading confirmed what owners already believed.', options: ['True', 'False'], correct: 0, explanation: 'After the reading, owners told Barbara about doors, falling merchandise, and Miss Loré—confirming her sense.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What does the script suggest about emotion in places?', options: ['Dissipates', 'Lingers and is absorbed by walls', 'Creates physical effects', 'Fades quickly'], correct: 1, explanation: 'Emotion lingers in a place; most people feel tension after argument—hers played out for years.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'How long did her resentment play out?', options: ['Days', 'Weeks', 'Years, the same walls, same weight, day after day', 'Months'], correct: 2, explanation: 'Her resentment played out for years in the same building, same weight, every day.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What distinguishes poltergeist from other hauntings?', options: ['Visibility', 'Physical movement of objects; emotion-driven', 'Noise', 'Cold'], correct: 1, explanation: 'Poltergeist is emotion manifesting physically—not just presence but active movement.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'True or False: The phenomena are easily explained.', options: ['True', 'False'], correct: 1, explanation: 'False. The consistent reports and Barbara\'s independent reading suggest something real.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What might visitors experience in the salon today?', options: ['Welcoming atmosphere', 'Doors opening, objects moving, feeling of presence', 'Cold only', 'Quiet'], correct: 1, explanation: 'Current activity includes doors opening and merchandise mysteriously moving.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'What type of salon was this?', options: ['Barbershop', 'Hair and beauty salon', 'Spa', 'Medical'], correct: 1, explanation: 'It was a salon where Miss Loré worked daily, likely hair/beauty work.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'How do we know about Miss Loré\'s feelings?', options: ['"Diary"', 'Through psychic reading and owner accounts; through phenomena patterns', '"Letters"', '"Testimony"'], correct: 1, explanation: 'Evidence comes from behavior and psychic sense, not direct documentation.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What makes poltergeists different?', options: ['"All hauntings move things"', 'Poltergeist energy comes from unresolved emotion, not intelligent spirit', '"Nothing different"', '"They\'re not real"'], correct: 1, explanation: 'Poltergeist is raw emotion with nowhere to go—different from conscious haunting.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'Why would Miss Loré\'s energy linger?', options: ['"Traumatic death"', 'Years of suppressed unhappiness created energetic imprint', '"She was cursed"', '"Magic"'], correct: 1, explanation: 'Decades of daily resentment accumulated—nowhere to discharge except through objects.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'What would help resolve this?', options: ['"Exorcism"', 'Recognition of her unhappiness and acknowledgment of her time there', '"Ignore it"', '"Leave"'], correct: 1, explanation: 'Sometimes acknowledging someone\'s experience can help release energy.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'Is Miss Loré\'s identity important?', options: ['"Very"', 'What matters is her emotional imprint, not who she was', '"Crucial"', '"Necessary"'], correct: 1, explanation: 'Her name is gone; her unhappiness is what remains.', difficulty: 2},
+            {stop: 'Doc Sloan\'s First Home', question: 'What was Doc Sloan\'s primary business?', options: ['Banking', 'Bootlegging', 'Shipping', 'Retail'], correct: 1, explanation: 'Doc Sloan ran one of the largest bootlegging operations in Florida.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Where did Doc\'s liquor come from?', options: ['Local stills', 'The Bahamas by boat', 'Canada', 'Hidden warehouses'], correct: 1, explanation: 'Boats brought liquor from the Bahamas, landing near Sebastian Inlet.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How did Doc transport liquor?', options: ['Wagons', 'Hired airplane with pilot', 'Train', 'Horses'], correct: 1, explanation: 'Doc had an airplane—a hired pilot flying liquor in.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How was Doc described?', options: ['Flashy', 'Quiet, gentlemanly, tall, thin, dark-haired', 'Loud', 'Average'], correct: 1, explanation: 'Quiet, gentlemanly man who never wasted a word.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What was his daughter Willie Mae known as?', options: ['Daughter', '"Bootlegger\'s daughter" in 1927 yearbook', 'Rebel', 'Student'], correct: 1, explanation: 'The yearbook actually printed "bootlegger\'s daughter" for Willie Mae.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Where did Doc give money?', options: ['Bank', 'Methodist Church sanctuary', 'School', 'Government'], correct: 1, explanation: 'Doc gave substantial sum to Methodist Church.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What happened in court 1926?', options: ['Arrested', 'Charged with gambling, found not guilty; courtroom applauded', 'Convicted', 'Released'], correct: 1, explanation: 'Judge returned not guilty on gambling charge; courtroom broke into applause.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Where was mansion built?', options: ['Downtown', 'Corner New Haven & Babcock (now CVS)', 'Waterfront', 'Beach'], correct: 1, explanation: 'Now occupied by a CVS pharmacy.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How many guests at housewarming?', options: ['50', 'Over 100', '200', '30'], correct: 1, explanation: 'One of Melbourne\'s biggest housewarming parties—over 100 guests.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What tragedy happened 2 months later?', options: ['Robbery', 'Two-year-old daughter Cora burned', 'Wife died', 'Fire'], correct: 1, explanation: 'Cora Elizabeth got matches, died from burns same day.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How old was Cora?', options: ['1', '2', '4', '6'], correct: 1, explanation: 'Two years old when accident happened.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Who heard the screaming?', options: ['Nurse', 'Her sister', 'Parents', 'Servants'], correct: 1, explanation: 'Sister heard screaming, saw Cora in flames.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What did doctor do?', options: ['Save her', 'Try to ease suffering', 'Surgery', 'Amputation'], correct: 1, explanation: 'Doctor could only ease suffering.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Did Doc continue bootlegging?', options: ['Stopped', 'Kept running whiskey through grief', 'Retired', 'Limited'], correct: 1, explanation: 'Business didn\'t stop for anything—grief or family.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How was Doc caught?', options: ['Raid', 'Girlfriend turned him in to feds', 'Bank records', 'Ship'], correct: 1, explanation: 'Customer\'s girlfriend turned him in after breakup.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Where tried?', options: ['Tampa', 'Jacksonville', 'Miami', 'Orlando'], correct: 2, explanation: 'Tried in Miami.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What sentence?', options: ['Death', 'Year and day in Atlanta Federal Penitentiary', '10 years', '5 years'], correct: 1, explanation: 'Sentenced to year and day; served alongside one of his drivers.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What happened upon return?', options: ['Arrested', 'Went right back to being Doc', 'Changed profession', 'Moved'], correct: 1, explanation: 'Resumed bootlegging operation.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What paranormal at mansion?', options: ['Cold', 'Chandelier swaying, glasses flying, bell ringing', 'Voices', 'Apparitions'], correct: 1, explanation: 'Objects moved on their own; martini glasses sailed off bar.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What did chef hear?', options: ['"Help"', '"Who\'s upstairs? Little girl crying, footsteps"', '"Ghosts"', '"Door"'], correct: 1, explanation: 'Chef asked who upstairs; heard little girl crying and footsteps.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Was anyone upstairs?', options: ['Yes', 'No—nobody there', 'Unknown', 'Staff'], correct: 1, explanation: 'No one was upstairs.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What became of building?', options: ['Still there', 'Demolished; CVS now', 'Museum', 'Apartments'], correct: 1, explanation: 'House demolished; CVS pharmacy stands there.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Did activity stop?', options: ['Yes', 'No—never stopped', 'Decreased', 'Unknown'], correct: 1, explanation: 'Phenomena reported to continue even at CVS.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What core tragedy?', options: ['Imprisonment', 'Burning of child in success-symbol house', 'Business', 'Family'], correct: 1, explanation: 'Two months after perfect party, burying two-year-old.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What emotion might linger?', options: ['Joy', 'Grief from burning; unresolved loss', 'Anger', 'Peace'], correct: 1, explanation: 'The screaming, flames—all in those walls.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Why would voice remain?', options: ['"Imagination"', 'Trauma imprinted on space', '"Ghost"', '"Nothing"'], correct: 1, explanation: 'Event marked the space; consciousness or imprint—doesn\'t matter.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Is this happy haunt?', options: ['"Yes"', 'No—grief and loss, not playful', '"Neutral"', '"Unknown"'], correct: 1, explanation: 'Unlike playful hauntings, this carries weight of tragedy.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What makes Doc ambiguous?', options: ['"Nothing"', 'Bootlegger AND generous AND grieving father', '"Good"', '"Bad"'], correct: 1, explanation: 'People are complex; Doc was all three.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What does story teach?', options: ['"Crime doesn\'t pay"', 'Wealth doesn\'t protect from tragedy', '"Get rich"', '"Hide"'], correct: 1, explanation: 'No amount of money shielded family from loss.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Why remember Doc?', options: ['"Entertainment"', 'Shows Melbourne\'s complexity—growth, crime, grief, silence', '"Boring"', '"Irrelevant"'], correct: 1, explanation: 'Every town has stories like Doc\'s.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What about family after?', options: ['"Broke apart"', 'Sadie eloped terrified; came home embraced', '"Stayed"', '"Separated"'], correct: 1, explanation: 'Despite fear, parents met Sadie with embrace—not punishment.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What did Otis do?', options: ['"Unknown"', 'Raised in that house after Cora\'s death', '"Escaped"', '"Rebelled"'], correct: 1, explanation: 'Doc\'s other children grew up in shadow of tragedy.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How many kids total?', options: ['2', 'Otis, Johnnie Lee, Willie Mae, Sadie, Joyce + Cora', '3', '8'], correct: 1, explanation: 'Five surviving children plus Cora before she died.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What distinction Doc made?', options: ['"None"', 'Bootlegger vs gangster—different kinds of favors', '"Same"', '"Unclear"'], correct: 1, explanation: 'Family\'s distinction: "bootlegger, not gangster."', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Why no machine guns found?', options: ['"Never there"', 'Family denied; later owners found nothing', '"Hidden well"', '"Unknown"'], correct: 1, explanation: 'Rumors unproven; investigation found no evidence.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What makes haunt significant?', options: ['"Just scary"', 'At intersection of personal tragedy and community complicity', '"Random"', '"Entertainment"'], correct: 1, explanation: 'A haunting reflecting historical layers.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What fuels theory?', options: ['"Nothing"', 'That Doc was connected—money, boats, plane, federal ties', '"Rumors"', '"Gossip"'], correct: 1, explanation: 'The infrastructure existed; connections plausible.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What would help?', options: ['"Exorcism"', 'Recognition of unhappiness, acknowledgment of time there', '"Ignore"', '"Leave"'], correct: 1, explanation: 'Sometimes acknowledging experience helps release energy.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'How long activity?', options: ['"Few years"', 'Over 110 years—longer than building stood', '"Decades"', '"Recent"'], correct: 1, explanation: 'Phenomena reported decades after demolition.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What location symbolizes?', options: ['"Just business"', 'Growth cost; success built on questionable practices', '"Normal"', '"Nothing"'], correct: 1, explanation: 'Melbourne\'s rise involved Doc\'s money and methods.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Why was Doc trusted?', options: ['"Fear only"', 'Mix of fear, gratitude, complicity, benefit', '"Money"', '"Unknown"'], correct: 1, explanation: 'Complex web of relationships in small town.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'What remains unresolved?', options: ['"Everything"', 'Cora\'s death; family grief; whether spirits linger', '"Nothing"', '"Solved"'], correct: 1, explanation: 'Some pain doesn\'t resolve—it just echoes.', difficulty: 2},
+            {stop: 'Jim Morrison\'s Birthplace', question: 'When born?', options: ['1941', '1942', '1943', '1945'], correct: 2, explanation: 'December 8, 1943.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Father\'s status?', options: ['Enlisted', 'U.S. Navy', 'Officer', 'Civilian'], correct: 1, explanation: 'Born while father served in Navy.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Where born?', options: ['Downtown', '2100 Vernon Place', 'Naval base', 'Hospital'], correct: 1, explanation: '2100 Vernon Place.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What childhood shaped him?', options: ['School', 'Witnessing accident with Native Americans in Southwest', 'Trauma', 'Death'], correct: 1, explanation: 'Morrison described devastating accident with Native American laborers.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What did he believe?', options: ['"Heaven"', '"Souls jumped into my soul"', '"Reincarnated"', '"Disappeared"'], correct: 1, explanation: 'Morrison said souls "jumped into my soul" and stayed.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What themes dominated?', options: ['Love', 'Altered states, ritual, mortality', 'Politics', 'Social justice'], correct: 1, explanation: 'Circled boundary of altered states and death.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Famous quote?', options: ['"Break through"', '"No one here gets out alive"', '"Light fire"', '"Break doors"'], correct: 1, explanation: '"No one here gets out alive."', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'When died?', options: ['1970', 'July 3, 1971', 'July 1971', '1972'], correct: 1, explanation: 'July 3, 1971 in Paris.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Where died?', options: ['LA', 'New York', 'Paris', 'London'], correct: 2, explanation: 'Paris.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Age at death?', options: ['25', '26', '27', '28'], correct: 2, explanation: '27 years old.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Cause ruled?', options: ['Overdose', 'Heart failure', 'Suicide', 'Accident'], correct: 1, explanation: 'French authorities ruled heart failure.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Buried where?', options: ['Hollywood', 'Père Lachaise, Paris', 'Tomb', 'Scattered'], correct: 1, explanation: 'Père Lachaise Cemetery.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What reported at grave?', options: ['Nothing', 'Whispers, cigarette smell, "Riders on Storm" faint', 'Cold', 'Music'], correct: 1, explanation: 'Visitors report phenomena at grave.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What song mentioned?', options: ['"Light My Fire"', '"Break Through"', '"Riders on the Storm"', '"The End"'], correct: 2, explanation: '"Riders on the Storm" heard faintly.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What band?', options: ['Beatles', 'Rolling Stones', 'The Doors', 'Pink Floyd'], correct: 2, explanation: 'The Doors.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What remarkable?', options: ['"Normal"', 'Man who wrote about spirits/death began in ghost town', '"Unknown"', '"Random"'], correct: 1, explanation: 'Born in Melbourne, obsessed with death his whole life.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Connection?', options: ['"None"', 'Town obsessed with ghosts; he obsessed with death', '"Coincidence"', '"Nothing"'], correct: 1, explanation: 'Origin in haunted place shaped fascinations.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Return to Melbourne?', options: ['"Yes"', 'No—left as child, never returned', '"Adult"', '"Often"'], correct: 1, explanation: 'Left as infant; never came back.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'House style?', options: ['Victorian', 'Frame Vernacular', 'Modern', 'Craftsman'], correct: 1, explanation: 'Built around 1920.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Significance?', options: ['"Nothing"', 'Ordinary house, extraordinary life\'s beginning', '"Random"', '"Tourist"'], correct: 1, explanation: 'Where legend began.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What taught?', options: ['"Avoid spirituality"', 'Early obsessions shape everything', '"Nothing"', '"Irrelevant"'], correct: 1, explanation: 'What haunts us early echoes forever.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Band formed where?', options: ['LA', 'New York', '1965', 'After meeting Ray'],correct: 3, explanation: 'The Doors formed later in Los Angeles.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'What obsession?', options: ['"Love"', 'Liminality—boundaries, death, altered consciousness', '"Money"', '"Fame"'], correct: 1, explanation: 'Fascinated by boundaries and transcendence.', difficulty: 2},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Why Melbourne matters?', options: ['"Tourist stop"', 'Shows how origin shapes destiny', '"Nothing"', '"Accident"'], correct: 1, explanation: 'Beginning illuminates everything after.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'What date?', options: ['Dec 7, 1955', 'Dec 8, 1955', 'Dec 9, 1955', 'Dec 10, 1955'], correct: 1, explanation: 'December 8, 1955.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What was Van Eeghen?', options: ['Café owner', 'Laundry owner', 'Merchant', 'Lawyer'], correct: 1, explanation: 'Laundry owner.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Was he married?', options: ['No', 'Yes, to Patricia', 'Divorced', 'Widower'], correct: 1, explanation: 'Yes, Patricia.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Daughter age?', options: ['5', '7', '9', '11'], correct: 1, explanation: 'Phyllis was 7.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Time at café?', options: ['30 min', 'Nearly 2 hours', '1 hour', '3 hours'], correct: 1, explanation: 'Nearly 2 hours at counter.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What did he order?', options: ['Food', 'Beer', 'Coffee', 'Whiskey'], correct: 1, explanation: 'Beer.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What happened?', options: ['"Late family"', 'Wife and daughter never came home; waiting was premeditation', '"Traffic"', '"Unknown"'], correct: 1, explanation: 'Most important piece—proved premeditation.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Who visited laundry?', options: ['"Van"', 'Thelma Moore', 'Police', 'Workers'], correct: 1, explanation: 'Customer Thelma Moore.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What she saw?', options: ['"Empty"', 'Van wiping hands; woman standing still at counter', 'Nobody', 'Child'], correct: 1, explanation: 'Van with hands wiped; small woman at counter.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Who was woman?', options: ['"Unknown"', 'Patricia', 'Phyllis', 'Customer'], correct: 1, explanation: 'Believed to be Patricia.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What evidence?', options: ['"None"', 'Blood, skull piece, footprints', 'Weapon', 'Clothing'], correct: 1, explanation: 'Blood, skull, footprints.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Footprints?', options: ['"Unknown"', 'Phyllis\'s shoes exactly—running pattern', 'Van\'s', 'Unknown child\'s'], correct: 1, explanation: 'Matched Phyllis\'s shoes.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Blood trail where?', options: ['"Street"', 'Toward front door of laundry', '"Away"', '"Nowhere"'], correct: 1, explanation: 'Toward laundry front door.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Car found?', options: ['"Home"', 'Parked outside funeral home', 'Café', 'Street'], correct: 1, explanation: 'Outside funeral home.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Inside car?', options: ['"Empty"', 'Bodies of Patricia and Phyllis', '"Luggage"', '"Evidence"'], correct: 1, explanation: 'Bodies of mother and daughter.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'How many trials?', options: ['"Once"', 'Twice—deadlock, then conviction', 'Three', 'Never'], correct: 1, explanation: 'First jury deadlocked; retrial convicted.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Convicted of?', options: ['"Double"', 'Second-degree murder of Phyllis', 'Manslaughter', 'First-degree'], correct: 1, explanation: 'Only Phyllis—never tried for Patricia.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Sentence?', options: ['"Death"', '25 to life', '10 years', '20 years'], correct: 1, explanation: '25 years to life at hard labor.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What historian said?', options: ['"Famous"', '"Crime of the century"', '"Unsolved"', '"Recent"'], correct: 1, explanation: 'Ann Raley called it Melbourne\'s "crime of the century."', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Compared to?', options: ['"Jack Ripper"', 'Lizzie Borden case', '"Manson"', '"OJ"'], correct: 1, explanation: 'Compared to Lizzie Borden.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Never found?', options: ['"Car"', 'Murder weapon', 'Bodies', 'Suspects'], correct: 1, explanation: 'No weapon identified.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Escape?', options: ['"No"', 'Yes—lived 8 years under assumed name', '"Recaptured"', '"Died"'], correct: 1, explanation: 'Escaped; lived 8 years free.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Upon capture?', options: ['"Re-sentenced"', 'Paroled', '"Executed"', '"Escaped again"'], correct: 1, explanation: 'Eventually paroled.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'After parole?', options: ['"Melbourne"', 'Deported to Canada; died 1998', '"Mexico"', '"Europe"'], correct: 1, explanation: 'Deported to Canada.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Maintained?', options: ['"Guilty"', '"Innocence"', '"Confessed"', '"Silent"'], correct: 1, explanation: 'Maintained innocence until death.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What paranormal?', options: ['"Cold"', 'Footsteps, music volume up, presence', 'Apparitions', 'Voices'], correct: 1, explanation: 'Footsteps, music changing, sense of presence.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Building now?', options: ['"Laundry"', 'Bicycle shop', 'Restaurant', 'Clothing'], correct: 1, explanation: 'Now bicycle shop.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Police incident?', options: ['"Burglary"', 'Officer cleared building weapon-drawn', '"Arrest"', '"Disturbance"'], correct: 1, explanation: 'Officer convinced someone inside; cleared room by room.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'What found?', options: ['"Intruder"', 'Nobody; still heard noises', '"Evidence"', '"Victims"'], correct: 1, explanation: 'Nothing found despite sounds.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Active areas?', options: ['"Everywhere"', 'Back corner down, northwest up', '"One"', '"Basement"'], correct: 1, explanation: 'Two focal areas reported.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Music behavior?', options: ['"Played itself"', 'Turned to full volume alone', '"Radio"', '"Stopped"'], correct: 1, explanation: 'Volume turned up with nobody near dial.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Upstairs slope?', options: ['"Straight"', 'Hard slope throws off balance/nerves', '"Level"', '"Uneven"'], correct: 1, explanation: 'Floor slopes hard—alone enough to unsettle nerves.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'What voices?', options: ['"Friendly"', 'Hostile male; female confirming', '"Happy"', '"Silent"'], correct: 1, explanation: 'Male hurled insults; females returned.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Male pattern?', options: ['"All"', 'Spoke only to one investigator; pushed him', '"None"', '"Quiet"'], correct: 1, explanation: 'Only addressed one person; seemed to push.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Spirits present?', options: ['"Unknown"', 'Patricia, running Phyllis, or something else', '"Doc"', '"Witnesses"'], correct: 1, explanation: 'Could be victims or unrelated presence.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'What remains unknowable?', options: ['"Everything"', 'Who or what is there; impossible to confirm', '"Truth"', '"Identity"'], correct: 1, explanation: 'Nobody investigating knows for certain.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Weapon theory?', options: ['"Found"', 'Never identified; creates enduring mystery', '"Known"', '"Obvious"'], correct: 1, explanation: 'Lack of weapon adds to puzzle.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Why haunt?', options: ['"Violent"', 'If Patricia/Phyllis—unresolved murder; if other—attached to location', '"Random"', '"Angry"'], correct: 1, explanation: 'If victims, trauma; if other, mystery.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Could it happen?', options: ['"No"', 'Yes—premeditation hidden by patience at café', '"Unlikely"', '"Unknown"'], correct: 1, explanation: 'Perfect crime planning shown by cafe wait.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Evidence strength?', options: ['"Weak"', 'Strong circumstantial; no direct proof', '"Perfect"', '"Lacking"'], correct: 1, explanation: 'Circumstantial but convincing.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Why retrial?', options: ['"Appeal"', 'First jury deadlocked; couldn\'t decide', '"New evidence"', '"Mistrial"'], correct: 1, explanation: 'Jury split—some reasonable doubt.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'What makes case special?', options: ['"Murder"', 'That premeditation visible in cafe hours', '"Violence"', '"Unknown"'], correct: 1, explanation: 'Shows planning through mundane observation.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'Is justice served?', options: ['"Yes"', 'Partially—only for one victim; Patricia never tried', '"No"', '"Unknown"'], correct: 1, explanation: 'One victim\'s death prosecuted; other unresolved.', difficulty: 2},,
+            {stop: 'Herndl\'s Café', question: 'What haunts visitor?', options: ['"Apparitions"', 'The ordinariness of it all—crime in everyday place', '"Screams"', '"Cold"'], correct: 1, explanation: 'That murder could happen amid casual business.', difficulty: 2},
+            {stop: 'Mainstreet Pub', question: 'What beneath Tiki Bar?', options: ['Treasure', 'Horse well', 'Artifacts', 'Foundation'], correct: 1, explanation: 'Well for watering horses.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Opened when?', options: ['1995', '2000', '2005', '2010'], correct: 2, explanation: '2005.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Spirit called?', options: ['"George"', '"Ma"', '"Owner"', '"Unknown"'], correct: 1, explanation: '"Ma."', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Know her name?', options: ['"Yes"', 'No—just "Ma"', '"Found"', '"Written"'], correct: 1, explanation: 'Real name lost.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Most activity?', options: ['"Dining"', 'Kitchen', 'Bar', 'Bathroom'], correct: 1, explanation: 'Kitchen—original location.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Warning?', options: ['"Quiet"', '"Don\'t make Ma mad"', '"Polite"', '"Watch"'], correct: 1, explanation: '"Don\'t make Ma mad."', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'When upset?', options: ['"Noise"', 'Utensils fall, objects move, things thrown', 'Doors', 'Lights'], correct: 1, explanation: 'Physical phenomena.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Staff introduction?', options: ['"Warned"', 'Treated like another staff member', '"Scared"', '"Story"'], correct: 1, explanation: 'Almost like she\'s still working there.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'How old building?', options: ['"50"', 'Over 100 years', '"150"', '"1800"'], correct: 1, explanation: 'Stood since 1920; over 100 years.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'What makes special?', options: ['"Just old"', 'No elaborate story needed; 110 years of living', '"Ghost"', '"History"'], correct: 1, explanation: 'Simple presence from decades of work.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What was Ma likely?', options: ['"Owner"', 'Worked in kitchen—heart of house', '"Cook"', '"Maid"'], correct: 1, explanation: 'Woman devoted to kitchen work.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Type haunt?', options: ['"Violent"', 'Non-violent; presence felt', '"Threatening"', '"Loud"'], correct: 1, explanation: 'Objects move; not dangerous.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'What particular?', options: ['"Scary"', '"Kitchen cleanliness and work standards"', '"Angry"', '"Cold"'], correct: 1, explanation: 'Particular about how work done.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Active now?', options: ['"No"', 'Yes—staff report ongoing', '"Stopped"', '"Unknown"'], correct: 1, explanation: 'Current phenomena reported.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Do guests notice?', options: ['"All"', 'Most don\'t; staff experience', '"Everyone"', '"None"'], correct: 1, explanation: 'Patrons just eat; staff witness.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Why visit?', options: ['"Food"', 'History and possibility of presence that won\'t let go', '"Ghost"', '"Famous"'], correct: 1, explanation: 'For story and atmosphere.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Most interesting?', options: ['"Ghost"', 'Unknown identity—ensuring she isn\'t forgotten despite anonymity', '"Food"', '"Location"'], correct: 1, explanation: 'Her anonymous presence preserved memory.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What legacy?', options: ['"Nothing"', 'Her kitchen standards persist; care echoes beyond death', '"Gone"', '"Forgotten"'], correct: 1, explanation: 'Her insistence survived her.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'Best reason visit?', options: ['"Scare"', 'To sit in place where care doesn\'t end', '"Party"', '"Drink"'], correct: 1, explanation: 'To feel enduring devotion.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What causes activity?', options: ['"Ghosts always"', 'Settling building OR something else; people decide', '"Random"', '"Mice"'], correct: 1, explanation: 'Multiple explanations possible.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'How staff respond?', options: ['"Terrified"', 'Accept it; part of working there', '"Investigate"', '"Leave"'], correct: 1, explanation: 'Normalized over time.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Historians say?', options: ['"Everything"', 'Can document building history; Ma\'s identity unknown', '"Nothing"', '"All"'], correct: 1, explanation: '110+ years documented; she remains mystery.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'Why identity unsolved?', options: ['"Records lost"', 'Best ghost stories preserve anonymity—ensures she\'s not forgotten', '"Nobody"', '"Accident"'], correct: 1, explanation: 'Her name is gone; her presence isn\'t.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What does building show?', options: ['"Age"', 'That places hold people; attachment outlasts death', '"History"', '"Architecture"'], correct: 1, explanation: 'Buildings aren\'t passive.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'Different from other haunt?', options: ['"Nothing"', 'No elaborate backstory; just presence from working there', '"Everything"', '"Random"'], correct: 1, explanation: 'Simplicity makes it powerful.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What if disrespected?', options: ['"Nothing"', 'Activity increases when corners cut', '"Stops"', '"Neutral"'], correct: 1, explanation: 'Phenomena increase with neglect.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What does haunt illustrate?', options: ['"Fiction"', 'Place absorbs lives, dedication, emotion', '"Entertainment"', '"Tourist"'], correct: 1, explanation: 'Buildings hold what happened in them.', difficulty: 2},,
+            {stop: 'Mainstreet Pub', question: 'What might she value?', options: ['"Money"', 'Proper work, cleanliness, respect for craft', '"Fame"', '"Praise"'], correct: 1, explanation: 'Based on behavior—work standards matter.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Would help?', options: ['"Exorcism"', 'Recognition, acknowledgment of her time there', '"Ignore"', '"Leave"'], correct: 1, explanation: 'Sometimes recognition helps release.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Why important?', options: ['"Scary"', 'Shows care can outlast death; devotion echoes', '"Tourism"', '"Nothing"'], correct: 1, explanation: 'That love for craft persists.', difficulty: 2},
+            {stop: 'The Henegar Center', question: 'First class graduated?', options: ['1920', '1921', '1922', '1923'], correct: 1, explanation: 'May 12, 1921.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'How many students?', options: ['5', '10', '13', '20'], correct: 2, explanation: '13 students.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'What date special?', options: ['Thursday', 'Friday 13th', 'Saturday', 'Sunday'], correct: 1, explanation: 'Friday the 13th; 1921 digits = 13.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Who held together?', options: ['"Many"', 'Ruth Henegar—teacher, then principal', '"Nobody"', '"Committee"'], correct: 1, explanation: 'Ruth Henegar.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Days absent?', options: ['"Many"', 'Exactly one day her entire career', '"Weeks"', '"Few"'], correct: 1, explanation: 'One day only.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Renamed when?', options: ['1950', '1960', '1963', '1970'], correct: 2, explanation: '1963 in her honor.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Military nearby?', options: ['"Army"', 'Naval Air Station WWII', '"Submarine"', '"Artillery"'], correct: 1, explanation: 'Naval base during WWII.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Theater group?', options: ['"Players"', 'Indian River Players', '"Community"', '"Local"'], correct: 1, explanation: 'Indian River Players.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Called?', options: ['"Mess"', '"Airport theater"', '"Navy"', '"Old"'], correct: 1, explanation: '"Airport theater."', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'How long?', options: ['"5 years"', '24+ years', '10 years', 'Unknown'], correct: 1, explanation: 'At least 24 years.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Who was Jonathan?', options: ['"Unknown"', 'Cook at mess, possibly WWII casualty', '"Soldier"', '"Officer"'], correct: 1, explanation: 'Likely cook who never came home.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'How described?', options: ['"Evil"', '"Free spirit—moved things, hid items, liked good shows"', '"Angry"', '"Protective"'], correct: 1, explanation: 'Free spirit with opinions.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Guys and Dolls?', options: ['"Normal"', 'Shoes hidden by Jonathan; returned after cast said fun\'s fun', '"Props"', '"Costumes"'], correct: 1, explanation: 'Actress\'s shoes disappeared, then returned.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What cast said?', options: ['"Stop"', '"Jonathan, fun is fun but stop jeopardizing production"', '"Go"', '"Leave"'], correct: 1, explanation: 'Told him production at risk.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Opinions about shows?', options: ['"No"', 'Yes—glow appeared when he liked production', '"Silent"', '"Neutral"'], correct: 1, explanation: 'Lavender/white glow at stage corner.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Glow color?', options: ['"Red"', 'Lavender or white', '"Blue"', '"Green"'], correct: 1, explanation: 'Soft lavender or white.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Director skeptical?', options: ['"No"', 'Yes—said so; candles blew out', '"Believer"', '"Unknown"'], correct: 1, explanation: 'Beyer was skeptic; all candles extinguished.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Lamp behavior?', options: ['"None"', 'Kerosene blown out every night; switched to battery', '"Stayed lit"', '"Varied"'], correct: 1, explanation: 'Jonathan blew it out nightly.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Evelyn\'s experience?', options: ['"Nothing"', 'Heard eating sounds, utensil clinks alone', '"Apparition"', '"Cold"'], correct: 1, explanation: 'Sounds of people eating—nobody there.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Dee\'s hatchet?', options: ['"Lost"', 'Disappeared, fell 5 feet behind him, vanished', '"Broke"', '"Found"'], correct: 1, explanation: 'Fell from above, nearly hit him.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Tried going home?', options: ['"No"', 'Yes—rode with cast members multiple times', '"Once"', '"Unclear"'], correct: 1, explanation: 'Attempted to leave with actors.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Rode with Feje?', options: ['"Nothing"', 'Switched headlights on at restaurant', '"Made noise"', '"Appeared"'], correct: 1, explanation: 'Manipulated lights while she was inside.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Theater closed?', options: ['"Still"', 'When building torn down that July', '"Years"', '"Unknown"'], correct: 1, explanation: 'Old theater demolished.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Last day?', options: ['"Goodbye"', 'Invited Jonathan to come with them', '"Locked"', '"Silent"'], correct: 1, explanation: 'Evans/Andrews invited him along.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'At Home Depot?', options: ['"Nothing"', 'Felt wet spitball on neck', '"Watched"', '"Touched"'], correct: 1, explanation: 'Evans felt physical contact.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Feje\'s words?', options: ['"Goodbye"', '"You\'re welcome with us"', '"Good luck"', '"Farewell"'], correct: 1, explanation: 'Invited Jonathan to new home.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'New location?', options: ['"Closed"', 'Henegar Center', '"Building"', '"Dissolved"'], correct: 1, explanation: 'Right there in Henegar.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Capacity new?', options: ['"500"', '500-seat Broadway house', '"300"', '"1000"'], correct: 1, explanation: 'Broadway-style theatre.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Did follow?', options: ['"Unknown"', 'Whether he adapted to Broadway—only presence in balcony knows', '"Yes"', '"No"'], correct: 1, explanation: 'Mess cook in Broadway house—enduring mystery.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Other haunts?', options: ['"Only Jonathan"', 'Also Molly Nook Perkins', '"Nobody"', '"Unknown"'], correct: 1, explanation: 'Jonathan not the only one.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Who was Molly?', options: ['"Guest"', 'Confused older woman with circus ticket', '"Performer"', '"Unknown"'], correct: 1, explanation: 'Sweet, confused woman with wrong ticket.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Ticket for?', options: ['"Theater"', 'Ringling Brothers Circus', '"Play"', '"Concert"'], correct: 1, explanation: 'Circus across town.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Looking for?', options: ['"Son"', 'Nephew—Ringling clown Bello Nock', '"Friend"', '"Anyone"'], correct: 1, explanation: 'Bello Nock was famous clown.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Told?', options: ['"Welcome"', 'Gently told wrong building', '"Leave"', '"Help"'], correct: 1, explanation: 'Management redirected her.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Left saying?', options: ['"Bye"', '"You\'ll hear end of this; I\'ll haunt"', '"Thanks"', '"Sorry"'], correct: 1, explanation: 'Threatened to haunt place.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What staff hear?', options: ['"Silence"', '"Bello, where are you? Your Aunt Molly"', '"Music"', '"Noise"'], correct: 1, explanation: 'Still calling gently for Bello.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Voice type?', options: ['"Loud"', 'Gently calling with endearments', '"Angry"', '"Desperate"'], correct: 1, explanation: 'Loving terms for nephew.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Psychic confirm?', options: ['"No"', 'Yes—picked up Molly; described woman', '"Maybe"', '"Unknown"'], correct: 1, explanation: 'Cold read matched perfectly.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Psychic briefed?', options: ['"Yes"', 'No—no knowledge beforehand', '"Some"', '"Guess"'], correct: 1, explanation: 'No background info.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Connection Jonathan/Molly?', options: ['"None"', 'Both followed their lives—he theater, she Bello', '"Time"', '"Unknown"'], correct: 1, explanation: 'Both seeking their places/people.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Why stay?', options: ['"Death"', 'Couldn\'t bring themselves to let go of place', '"Always"', '"Unknown"'], correct: 1, explanation: 'Connected to place; couldn\'t leave.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Central theme?', options: ['"Scary"', 'How places hold people who won\'t let go', '"Tragic"', '"Mystery"'], correct: 1, explanation: 'Place holds those attached to it.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'How long active?', options: ['"Few"', '105+ years in one spot', '"Decades"', '"Century"'], correct: 1, explanation: 'Over a century.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Building additions?', options: ['"One"', 'Three—original, 1926, 1928', 'Two', 'Four'], correct: 1, explanation: 'Rapid expansion.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Years of shows?', options: ['"Few"', '24+ in old theater alone', '"Decades"', '"Unknown"'], correct: 1, explanation: 'Two+ decades in mess hall.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'What renovation shows?', options: ['"Update"', 'Institutions adapt; spirits adapt or remain attached', '"Waste"', '"Meaning"'], correct: 1, explanation: 'Places reinvent; hauntings persist.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Does location matter?', options: ['"No"', 'Yes—place itself holds people', '"Maybe"', '"Unknown"'], correct: 1, explanation: 'Where something happens matters.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Most haunted area?', options: ['"Stage"', 'Left side proscenium—glow appeared', '"Balcony"', '"Green room"'], correct: 1, explanation: 'Jonathan\'s favorite watching spot.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What if acknowledged?', options: ['"Nothing"', 'Recognition might help release attachment', '"Stays"', '"Leaves"'], correct: 1, explanation: 'Acknowledgment can transform energy.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What parallels?', options: ['"None"', 'Ruth devoted life; Jonathan devoted presence; Molly devoted search', '"Coincidence"', '"Random"'], correct: 1, explanation: 'All three gave everything to place/person.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Why return here?', options: ['"Tourism"', 'To sit in place where devotion echoed across time', '"Entertainment"', '"Scared"'], correct: 1, explanation: 'To feel persistence of care.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What haunts visitors?', options: ['"Ghosts"', 'Realization that place holds more than brick', '"Screams"', '"Cold"'], correct: 1, explanation: 'That attachment outlasts death.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Does time matter?', options: ['"No"', 'Yes—105 years of devotion compounds', '"Sometimes"', '"Unknown"'], correct: 1, explanation: 'Time deepens attachment to place.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'What if they left?', options: ['"Nothing"', 'Might take time for presence to dissipate', '"Gone"', '"Nothing changes"'], correct: 1, explanation: 'Energy doesn\'t disappear instantly.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Lesson here?', options: ['"Love"', 'That devotion is powerful—survives even death', '"Care"', '"Duty"'], correct: 1, explanation: 'What we care for holds us.', difficulty: 2},
+            {stop: 'Melbourne Times Building', question: 'Built when?', options: ['1910', '1915', '1920', '1925'], correct: 2, explanation: '1920.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Paper started?', options: ['1885', '1890', '1894', '1900'], correct: 2, explanation: '1894.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Oslin used?', options: ['"Press"', 'Hand-operated press', '"Typewriter"', '"Quill"'], correct: 1, explanation: 'Hand press.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'After newspaper?', options: ['"Office"', 'Red Star Grocery', '"Restaurant"', '"Apartments"'], correct: 1, explanation: 'Became grocery.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Controversial use?', options: ['"None"', 'Second floor KKK meetings 1920s-30s', '"Restaurant"', '"Office"'], correct: 1, explanation: 'Dark chapter in history.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'Proud history?', options: ['"Yes"', 'No—but shows how far we\'ve come', '"Forgotten"', '"Ignored"'], correct: 1, explanation: 'Reminds us of progress.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'Later became?', options: ['"Store"', 'Apartments', '"Office"', '"Museum"'], correct: 1, explanation: 'Apartments.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'What tragedy?', options: ['"Fire"', 'Man with alcoholism bled internally; found days later', '"Murder"', '"Suicide"'], correct: 1, explanation: 'Alone in apartment; discovered by smell.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'How long undiscovered?', options: ['"Hours"', 'Days before discovered', '"Minutes"', '"Weeks"'], correct: 1, explanation: 'Days passed.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Heat situation?', options: ['"Off"', 'Running; cold weather outside', '"On high"', '"Broken"'], correct: 1, explanation: 'Heat left running.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Who responded?', options: ['"Coroner"', 'Police detective', '"Officer"', '"First"'], correct: 1, explanation: 'Detective.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Significant for detective?', options: ['"Routine"', 'First dead body in his career', '"Normal"', '"Another"'], correct: 1, explanation: 'First body he\'d ever seen.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'Plaque there?', options: ['"Yes"', 'No—passed without knowing history', '"Marked"', '"Commemorated"'], correct: 1, explanation: 'No marker.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Why matters?', options: ['"Nothing"', 'Stands next Morrison birthplace—layered history', '"Forgotten"', '"Ignored"'], correct: 1, explanation: 'Ordinary building, extraordinary story.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'Final lesson?', options: ['"Scary"', 'That history surrounds us unnoticed', '"Tourism"', '"Nothing"'], correct: 1, explanation: 'Every building holds stories.', difficulty: 1},
+            {stop: 'Fee & Stewart', question: 'Tradition there?', options: ['No', 'Understood role was essential', 'Maybe', 'Unclear'], correct: 1, explanation: 'Community relied on them.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Convict count?', options: ['Hundreds', 'Thousands', 'Dozens', 'Unknown'], correct: 1, explanation: 'System affected thousands.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Luxury level?', options: ['Basic', 'High-end for 1924', 'Average', 'Poor'], correct: 1, explanation: 'Top tier at time.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Mixed use?', options: ['No', 'Yes—commercial and residential', 'Unknown', 'Offices'], correct: 1, explanation: 'Multiple functions over time.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Employee impact?', options: ['None', 'Difficult working conditions', 'Positive', 'Unknown'], correct: 1, explanation: 'Energy affected staff.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Federal prison?', options: ['Local', 'Atlanta Federal', 'State', 'Miami'], correct: 1, explanation: 'Federal facility.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Stay length?', options: ['Years', 'Infant only', 'Childhood', 'Unknown'], correct: 1, explanation: 'Brief time in Melbourne.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Building type?', options: ['Brick', 'Wood', 'Concrete', 'Stone'], correct: 1, explanation: 'Wooden structure.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Kitchen age?', options: ['New', 'Original to building', 'Unknown', 'Renovated'], correct: 1, explanation: 'Heart of the place.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Seats now?', options: ['300', '500', '1000', 'Unknown'], correct: 1, explanation: '500-seat facility.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Depression survival?', options: ['Closed', 'Adapted and survived', 'Thrived', 'Unknown'], correct: 1, explanation: 'Weathered storms.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Years active?', options: ['5', '50+', '100', 'Unknown'], correct: 1, explanation: 'Long-term operation.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Public aware?', options: ['Yes', 'Complicit silence', 'No', 'Unknown'], correct: 1, explanation: 'Community benefited.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Multiple names?', options: ['No', 'Midway, hotel, apartments, bar', 'Few', 'Unknown'], correct: 1, explanation: 'Many identities.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Poltergeist type?', options: ['Intelligent', 'Emotion-based', 'Playful', 'Malevolent'], correct: 1, explanation: 'Raw emotion manifesting.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Return activity?', options: ['Stopped', 'Never ceased', 'Faded', 'Unknown'], correct: 1, explanation: 'Phenomena persist.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Current business?', options: ['Laundry', 'Bicycle shop', 'Restaurant', 'Apartments'], correct: 1, explanation: 'Shop now.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Staff education?', options: ['No', 'Taught about Ma', 'Warning given', 'Signed waiver'], correct: 1, explanation: 'New staff learn story.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Moved from?', options: ['Front Street', 'Downtown', 'Waterfront', 'Old location'], correct: 1, explanation: 'Relocated after fire.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Basement level?', options: ['No', 'Yes—storage', 'Unknown', 'Flooding'], correct: 1, explanation: 'Below grade space.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Mabel impact?', options: ['Minor', 'Drawing cross-cultural audience', 'None', 'Unknown'], correct: 1, explanation: 'Music brought people.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Escape consequences?', options: ['Mild', 'Death often', 'Imprisonment', 'Fines'], correct: 1, explanation: 'Severe deterrence.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'School dates?', options: ['1910-1920', '1916-1920', '1920-1930', 'Unknown'], correct: 1, explanation: 'Brief school use.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Business type?', options: ['Restaurant', 'Hair salon', 'Shop', 'Café'], correct: 1, explanation: 'Beauty services.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Daughter escape?', options: ['No', 'Sadie eloped terrified', 'Ran away', 'Disowned'], correct: 1, explanation: 'Fear-driven.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Connection strong?', options: ['Weak', 'Yes—spirits and death obsessions', 'None', 'Unclear'], correct: 1, explanation: 'Origin shapes destiny.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Verdict final?', options: ['Appealed', 'Conviction stood', 'Overturned', 'Unknown'], correct: 1, explanation: 'Judgment upheld.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Ma particulars?', options: ['"Clean"', '"Kitchen standards and work quality"', '"Food"', '"Quiet"'], correct: 1, explanation: 'Cared about work.', difficulty: 1},
+            {stop: 'Fee & Stewart', question: 'What made successful?', options: ['Luck', 'Trust, need, good service', 'Advertising', 'Connections'], correct: 1, explanation: 'Essential services well-done.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Why separated?', options: ['"Regulation"', 'Specialization—funeral homes and pharmacies', '"Law"', '"Choice"'], correct: 1, explanation: 'Industry specialization happened.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Modern haunt?', options: ['"Unknown"', 'Possibly—trauma of deaths', '"No"', '"Maybe"'], correct: 0, explanation: 'Unclear if phenomena present.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Semino le ties?', options: ['"Trade"', 'Cross-cultural gathering around music', '"Business"', '"Unknown"'], correct: 1, explanation: 'Piano drew visitors.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Legacy remains?', options: ['"Nothing"', 'Shows care infrastructure foundation', '"Forgotten"', '"Lost"'], correct: 1, explanation: 'Root of community services.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Building demolished?', options: ['"No"', 'Yes—long ago', '"Standing"', '"Unknown"'], correct: 1, explanation: 'Site changed.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Penitentiary 1877?', options: ['"Ran"', 'Florida shut it—leasing more profitable', '"Stayed open"', '"Unknown"'], correct: 1, explanation: 'Economic decision.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Vagrancy targets?', options: ['"All"', 'Freedmen specifically', '"Poor"', '"Unknown"'], correct: 1, explanation: 'Racial system design.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Investment kept alive?', options: ['"Yes"', 'No—replace when died', '"Some"', '"Unknown"'], correct: 1, explanation: 'No care investment.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Boat details?', options: ['"Unknown"', 'Wooden stockades, cornmeal diet, disease', '"Luxury"', '"Unknown"'], correct: 1, explanation: 'Brutal conditions.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Greater Allen fate?', options: ['"Closed"', 'Still standing, still active', '"Demolished"', '"Unknown"'], correct: 1, explanation: 'Enduring institution.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Flagler\'s watch lost?', options: ['"Found"', 'Near Eau Gallie—never recovered', '"Stolen"', '"Myth"'], correct: 1, explanation: 'Mystery item lost.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'First locomotive date?', options: ['"July 4"', 'July 3, 1893', '"June"', '"August"'], correct: 1, explanation: 'Specific arrival.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'E.P. Branch role?', options: ['"Banker"', 'Spent months in NYC pitching Flagler', '"Conductor"', '"Businessman"'], correct: 1, explanation: 'Diplomatic mission.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'What three institutions?', options: ['"Unknown"', 'Bank, church, railroad in 48 hours', '"Store, school, office"', '"Homes"'], correct: 1, explanation: 'Foundation building.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Time capsule seal?', options: ['"2025"', '2045', '"2050"', '"2030"'], correct: 1, explanation: 'Long-term seal.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'Two killed by?', options: ['"Train"', 'Automobile struck them', '"Accident"', '"Hit"'], correct: 1, explanation: 'Traffic tragedy.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Realtor claimed?', options: ['"One ghost"', 'Building housed many spirits', '"Safe"', '"Unknown"'], correct: 1, explanation: 'Multiple presences.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Foundation support?', options: ['"Two"', 'Engineered for six more stories', '"Four"', '"Unknown"'], correct: 1, explanation: 'Built strong.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Streetlevel businesses?', options: ['"Just bar"', 'Pharmacy, barber, bar, taxi dispatch', '"Hotel only"', '"Office"'], correct: 1, explanation: 'Multi-business ground.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Bell rings now?', options: ['"Yes"', 'Still reports of ringing', '"No"', '"Unknown"'], correct: 1, explanation: 'Phenomena reported.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Apartment residents?', options: ['"Many"', 'Experience phenomena regularly', '"Few"', '"None"'], correct: 1, explanation: 'Current occupants report activity.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Bathroom sealed?', options: ['"No"', 'Yes—possible homicide connection', '"Reopened"', '"Unknown"'], correct: 1, explanation: 'Undocumented history.', difficulty: 2},,
+            {stop: 'The Myles Building', question: 'School bell purpose?', options: ['"Music"', 'Class calls, then happy hour', '"Signal"', '"Sound"'], correct: 1, explanation: 'Multiple eras, one bell.', difficulty: 1},,
+            {stop: 'The Myles Building', question: 'Bootleg transport?', options: ['"Wagons"', 'Havana Special coffins', '"Boats"', '"Unknown"'], correct: 1, explanation: 'Coffin liquor shipping.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Merchandise behavior?', options: ['"Stolen"', 'Leaps from shelves, shatters', '"Missing"', '"Rearranged"'], correct: 1, explanation: 'Violent movement.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Recognition help?', options: ['"Maybe"', 'Sometimes acknowledging experience releases energy', '"No"', '"Unknown"'], correct: 1, explanation: 'Possible resolution path.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'Decades trapped?', options: ['"Years"', 'Same walls, same weight, every day', '"Months"', '"Unknown"'], correct: 1, explanation: 'Long-term resentment.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Airplane visible?', options: ['"Rarely"', 'Kids watched it pass overhead year after year', '"Never"', '"Unknown"'], correct: 1, explanation: 'Obvious operation.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Youngest daughter?', options: ['"Willie Mae"', 'Cora Elizabeth', '"Joyce"', '"Sadie"'], correct: 1, explanation: 'The burned child.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Prison sentence?', options: ['"Death"', 'Year and day', '"10 years"', '"5 years"'], correct: 1, explanation: 'Short federal term.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Methodist donor?', options: ['"No"', 'Yes—substantial gift', '"Maybe"', '"Unknown"'], correct: 1, explanation: 'Church connection.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'After release?', options: ['"Stopped"', 'Resumed bootlegging immediately', '"Legitimate"', '"Moved"'], correct: 1, explanation: 'Pattern continued.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Age death?', options: ['"26"', '27', '"28"', '"25"'], correct: 1, explanation: '"Club 27" member.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Père Lachaise visitors?', options: ['"Few"', 'Report whispers, smell, faint song', '"Many"', '"None"'], correct: 1, explanation: 'Consistent phenomena reports.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Spirit interest?', options: ['"Death only"', 'Altered states, ritual, boundaries', '"Love"', '"Music"'], correct: 1, explanation: 'Transcendence obsession.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Van Eeghen motive?', options: ['"Passion"', 'Likely—complicated relationship', '"Robbery"', '"Unknown"'], correct: 1, explanation: 'Relationship issues likely.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'First jury?', options: ['"Guilty"', 'Deadlocked—hung jury', '"Innocent"', '"Quick"'], correct: 1, explanation: 'Reasonable doubt existed.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Thelma Moore saw?', options: ['"Police"', 'Woman at counter, man wiping hands', '"Arguing"', '"Children"'], correct: 1, explanation: 'Crucial witness.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Red convertible?', options: ['"Parked home"', 'Outside funeral home', '"Missing"', '"Stolen"'], correct: 1, explanation: 'Where bodies found.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Weapons found?', options: ['"Many"', 'None—mystery weapon', '"Gun"', '"Knife"'], correct: 1, explanation: 'Unidentified murder method.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Evidence timing?', options: ['"Days"', 'Footprints matched Phyllis\'s exact shoes', '"Hours"', '"Weeks"'], correct: 1, explanation: 'Physical evidence clear.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Original well?', options: ['"Gone"', 'Still said to be beneath Tiki Bar', '"Visible"', '"Filled"'], correct: 1, explanation: 'Hidden infrastructure.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Ma warnings?', options: ['"Universal"', '"Don\'t make Ma mad" is standard intro', '"Jokes"', '"None"'], correct: 1, explanation: 'Standard staff ritual.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Neglect consequence?', options: ['"Nothing"', 'Activity increases when corners cut', '"Stops"', '"Neutral"'], correct: 1, explanation: 'Standards enforced.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'First name day?', options: ['"May 11"', 'May 12, 1921', '"May 13"', '"May 10"'], correct: 1, explanation: 'Friday 13th in year 13.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Ruth absent?', options: ['"Often"', 'Exactly once in career', '"Never"', '"Yearly"'], correct: 1, explanation: 'Perfect attendance record.', difficulty: 2},,
+            {stop: 'The Henegar Center', question: 'Jonathan liked?', options: ['"Bad shows"', 'Good productions—glow appeared', '"All"', '"None"'], correct: 1, explanation: 'Critical spirit.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Glow appeared?', options: ['"Rarely"', 'When he approved show', '"Never"', '"Always"'], correct: 1, explanation: 'Approval sign.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Candle skeptic?', options: ['"Believer"', 'Beyer skeptical; all blew out', '"Witness"', '"Ignored"'], correct: 1, explanation: 'Immediate physical response.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Lamp nightly?', options: ['"Stayed lit"', 'Kerosene blown out every night', '"Auto-lit"', '"Unknown"'], correct: 1, explanation: 'Pattern behavior.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Molly relation?', options: ['"Stranger"', 'Elderly confused about Bello Nock location', '"Employee"', '"Customer"'], correct: 1, explanation: 'Mistaken venue.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Bello was?', options: ['"Unknown"', 'Famous Ringling Brothers clown', '"Performer"', '"Trapeze"'], correct: 1, explanation: 'Circus celebrity.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Still calling?', options: ['"No"', 'Yes—gently, for Bello', '"Angry"', '"Silent"'], correct: 1, explanation: 'Enduring search.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Both seeking?', options: ['"Different"', 'Jonathan and Molly—couldn\'t let go', '"Found"', '"Resolved"'], correct: 1, explanation: 'Attachment patterns.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'When founded?', options: ['"1890"', '1894', '"1900"', '"1885"'], correct: 1, explanation: 'Emmett David Oslin founder.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Press type?', options: ['"Electric"', 'Hand-operated', '"Printing press"', '"Typewriter"'], correct: 1, explanation: 'Manual labor.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Kkk activity dates?', options: ['"1900s"', '1920s-30s', '"1940s"', '"1950s"'], correct: 1, explanation: 'Dark era.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Then apartments?', options: ['"No"', 'Yes—residential conversion', '"Office"', '"Museum"'], correct: 1, explanation: 'Housing later.', difficulty: 1},
+            {stop: 'Fee & Stewart', question: 'Mabel children?', options: ['Yes', 'Unknown—history silent', 'No', 'Several'], correct: 1, explanation: 'Personal life undocumented.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Stewart honored?', options: ['No', 'Street named after', 'Monument', 'Plaque'], correct: 1, explanation: 'Community recognition.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Pharmacy regulations?', options: ['Strict', 'None—self-regulated', 'Federal', 'State'], correct: 1, explanation: 'Early era looseness.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Furniture inventory?', options: ['Basic', 'Likely coffins stored there', 'Minimal', 'Unknown'], correct: 1, explanation: 'Multi-purpose space.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Frank Fee origin?', options: ['"Local"', 'Partner with Charles', '"Outsider"', '"Unknown"'], correct: 1, explanation: 'Business partnership.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Location central?', options: ['No', 'Yes—main business district', 'Outskirts', 'Unknown'], correct: 1, explanation: 'Prime location.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Sanborn maps show?', options: ['"Nothing"', 'Building stood since 1920', '"Recent"', '"Unknown"'], correct: 1, explanation: 'Historic documentation.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Wright Brothers legacy?', options: ['"Unknown"', 'Founded church and community institutions', '"Forgotten"', '"Minor"'], correct: 1, explanation: 'Foundational role.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Convict mortality?', options: ['"Low"', 'High—disease, abuse, conditions', '"Moderate"', '"Unknown"'], correct: 1, explanation: 'Deliberate indifference.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Vagrancy definition?', options: ['"Crime"', 'Walking without money, employment', '"Loitering"', '"Wandering"'], correct: 1, explanation: 'Legally defined poverty.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'William Rufus?', options: ['"Adult"', 'First Black child born Melbourne', '"Immigrant"', '"Unknown"'], correct: 1, explanation: 'Historic birth.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Integrated school?', options: ['"No"', 'Yes—William Rufus attended', '"Segregated"', '"Unknown"'], correct: 1, explanation: 'Early integration attempt.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Memorial today?', options: ['"Yes"', 'Museum and corporation preserve history', '"No"', '"Unknown"'], correct: 1, explanation: 'Active remembrance.', difficulty: 1},,
+            {stop: 'Crane Creek Railway', question: 'Tourist perspective?', options: ['"Scary"', 'See Melbourne\'s foundation and cost', '"Entertainment"', '"Nothing"'], correct: 1, explanation: 'Educational haunting.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Current year haunt?', options: ['"Active"', 'Still reported phenomena', '"Quiet"', '"Unknown"'], correct: 1, explanation: 'Ongoing activity claims.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Rooftop parties?', options: ['"Historical"', 'Yes—famous afternoon teas and dances', '"Unknown"', '"Rare"'], correct: 1, explanation: 'Luxe entertainment.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Air conditioning?', options: ['"Yes"', 'No—ceiling fans, crossflow', '"Unknown"', '"Central"'], correct: 1, explanation: 'Period-appropriate cooling.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'Amelia\'s captain?', options: ['"Stayed"', 'Drowned trying to return to her', '"Arrived"', '"Unknown"'], correct: 1, explanation: 'Tragic love story.', difficulty: 1},,
+            {stop: 'Melbourne Hotel', question: 'McGuire haunting duration?', options: ['"Years"', 'Over 100 years complaining about linens', '"Decades"', '"Unknown"'], correct: 1, explanation: 'Persistent standards.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Bootlegging scale?', options: ['"Small"', 'One of Florida\'s largest operations', '"Regional"', '"Unknown"'], correct: 1, explanation: 'Major criminal enterprise.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Method diversification?', options: ['"Boats only"', 'Boats and airplane—multiple routes', '"Single"', '"Unknown"'], correct: 1, explanation: 'Sophisticated operation.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Cora death impact?', options: ['"Minimal"', 'Likely trauma for entire family forever', '"Recovered"', '"Unknown"'], correct: 1, explanation: 'Unresolvable grief.', difficulty: 2},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Joyce life?', options: ['"Unknown"', 'Raised in shadow of tragedy', '"Happy"', '"Moved"'], correct: 1, explanation: 'Lifetime impact.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Johnnie Lee?', options: ['"Unknown"', 'Son who likely worked family operations', '"Civilian"', '"Escaped"'], correct: 1, explanation: 'Implicit knowledge.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'CVS phenomena?', options: ['"None"', 'Activity reportedly continues even now', '"Unknown"', '"Stopped"'], correct: 1, explanation: 'Location curse.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Native American accident?', options: ['"Myth"', 'Actual witnessed event in Southwest', '"Story"', '"Unknown"'], correct: 1, explanation: 'Formative trauma.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Morrison siblings?', options: ['"Yes"', 'At least one sister', '"Only child"', '"Unknown"'], correct: 1, explanation: 'Not alone in family.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Military family?', options: ['"Civilian"', 'Father career Navy—moved frequently', '"One tour"', '"Unknown"'], correct: 1, explanation: 'Military culture.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Grave location?', options: ['"Secret"', 'Père Lachaise among famous', '"Private"', '"Unknown"'], correct: 1, explanation: 'Public cemetery.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Patricia age?', options: ['"Young"', 'Adult—wife to Van Eeghen', '"Elderly"', '"Unknown"'], correct: 1, explanation: 'Assumed adult marriage.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Defense argument?', options: ['"Innocent"', 'Another killer; wife eloped; other theories', '"Guilty"', '"Unknown"'], correct: 1, explanation: 'Van Eeghen maintained doubts.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Media coverage?', options: ['"Minimal"', 'Intense—Melbourne\'s biggest story', '"None"', '"Unknown"'], correct: 1, explanation: 'Sensational case.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Canada deportation?', options: ['"Refused"', 'Accepted after parole', '"Fought"', '"Unknown"'], correct: 1, explanation: 'Final exit from US.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Kitchen original?', options: ['"Renovated"', 'Believed original house kitchen', '"New"', '"Unknown"'], correct: 1, explanation: 'Historic core.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Well still there?', options: ['"No"', 'Yes—beneath Tiki Bar', '"Visible"', '"Unknown"'], correct: 1, explanation: 'Hidden infrastructure.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Pre-1800s use?', options: ['"Settlement"', 'Watering stop for early travelers', '"Trading"', '"Unknown"'], correct: 1, explanation: 'Transportation hub.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Poltergeist science?', options: ['"Ghosts"', 'Emotion-based phenomena theory', '"Fake"', '"Unknown"'], correct: 1, explanation: 'Psychological model.', difficulty: 2},,
+            {stop: 'The Salon of Miss Loré', question: 'Movement patterns?', options: ['"Random"', 'Objects moved precisely—directed energy', '"Predictable"', '"Unknown"'], correct: 1, explanation: 'Intentional-seeming behavior.', difficulty: 1},,
+            {stop: 'The Salon of Miss Loré', question: 'Shelf height?', options: ['"Unknown"', 'Merchandise jumped from high places', '"Low"', '"Variable"'], correct: 1, explanation: 'Force required.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Productions annually?', options: ['"Few"', 'Multiple shows per year ongoing', '"One"', '"Unknown"'], correct: 1, explanation: 'Active schedule.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Jonathan attire?', options: ['"Unknown"', 'Likely cook\'s whites from mess era', '"Soldier"', '"Formal"'], correct: 1, explanation: 'Occupational uniform.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Molly sweetness?', options: ['"Angry"', 'Gentle, loving, confused', '"Hostile"', '"Silent"'], correct: 1, explanation: 'Emotion profile.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Pressure doors?', options: ['"None"', 'Yes—doors pushed open/closed', '"Locked"', '"Unknown"'], correct: 1, explanation: 'Physical interaction.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Oslin connection?', options: ['"Unknown"', 'Founder—likely reason named Times', '"Coincidence"', '"No"'], correct: 1, explanation: 'Founder\'s legacy.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Circulation size?', options: ['"Large"', 'Small town paper—local only', '"Regional"', '"Unknown"'], correct: 1, explanation: 'Limited distribution.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'KKK prominence?', options: ['"Small"', 'Significant presence in 1920s-30s', '"Major"', '"Unknown"'], correct: 1, explanation: 'Dark history.', difficulty: 2},,
+            {stop: 'Melbourne Times Building', question: 'How exposed?', options: ['"Publicly"', 'Public largely ignored or participated', '"Documented"', '"Unknown"'], correct: 1, explanation: 'Community complicity.', difficulty: 2},,
+            {stop: 'Fee & Stewart', question: 'Charles Stewart first?', options: ['"No"', 'Yes—single operator for decade', '"Immediate"', '"Unknown"'], correct: 0, explanation: 'Solo then partnered.', difficulty: 2},,
+            {stop: 'Crane Creek Railway', question: 'Sundown rule enforced?', options: ['"No"', 'Yes—crossing bridge by nightfall required', '"Sometimes"', '"Unknown"'], correct: 1, explanation: 'Racial restriction.', difficulty: 2},,
+            {stop: 'Melbourne Hotel', question: 'Restoration funding?', options: ['"Private"', 'Brandon couple paid for restoration', '"Grant"', '"Unknown"'], correct: 1, explanation: 'Private investment.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Sadie marriage?', options: ['"Forced"', 'Elopement—fled in fear', '"Arranged"', '"Unknown"'], correct: 1, explanation: 'Desperate escape.', difficulty: 1},,
+            {stop: 'Jim Morrison\'s Birthplace', question: 'Frame construction?', options: ['"Brick"', 'Vernacular wood frame', '"Concrete"', '"Stone"'], correct: 1, explanation: 'Period method.', difficulty: 1},,
+            {stop: 'Herndl\'s Café', question: 'Phyllis shoes?', options: ['"Found"', 'Footprints matched her exact shoes pattern', '"Taken"', '"Unknown"'], correct: 1, explanation: 'Child\'s running path.', difficulty: 1},,
+            {stop: 'Mainstreet Pub', question: 'Kitchen equipment?', options: ['"Modern"', 'Some original equipment remains', '"All replaced"', '"Unknown"'], correct: 1, explanation: 'Historic preservation.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'WWII naval base name?', options: ['"Unknown"', 'Hellcats—fighter pilots', '"Bombers"', '"Fighters"'], correct: 1, explanation: 'Military designation.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Still published?', options: ['"Yes"', 'No—relocated years ago', '"Monthly"', '"Unknown"'], correct: 1, explanation: 'No longer here.', difficulty: 1},
+            {stop: 'Melbourne Hotel', question: 'Worth visiting?', options: ['No', 'Yes—see where hauntings began', 'Maybe', 'Unknown'], correct: 1, explanation: 'Gateway to Melbourne ghost tour.', difficulty: 1},,
+            {stop: 'Fee & Stewart', question: 'Life expectancy?', options: ['Decades', 'Estimated 50+ years operation', 'Unknown', 'Short'], correct: 1, explanation: 'Long-term fixture.', difficulty: 1},,
+            {stop: 'Doc Sloan\'s First Home', question: 'Haunting intensity?', options: ['Light', 'Heavy—multiple witnesses', 'Moderate', 'Unknown'], correct: 1, explanation: 'Well-documented phenomena.', difficulty: 1},,
+            {stop: 'The Henegar Center', question: 'Modern theater quality?', options: ['Poor', 'Professional-grade venue', 'Adequate', 'Unknown'], correct: 1, explanation: 'Regional draw.', difficulty: 1},,
+            {stop: 'Melbourne Times Building', question: 'Historical marker present?', options: ['Yes', 'No—history unmarked', 'Planned', 'Unknown'], correct: 1, explanation: 'Story easily missed.', difficulty: 1}
+        ];
+        
+        QUESTIONS.forEach((q, i) => q.id = 'q-' + (i+1));
+        
+        let state = {
+            mode: null,
+            session: [],
+            index: 0,
+            selected: null,
+            answered: false,
+            stats: { correct: 0, incorrect: 0, streak: 0, best: 0 },
+            history: []
+        };
+        
+        function show(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+        
+        function startMode(m) {
+            state.mode = m;
+            state.index = 0;
+            state.selected = null;
+            state.stats = { correct: 0, incorrect: 0, streak: 0, best: 0 };
+            state.history = [];
+            
+            if (m === 'learn') state.session = [...QUESTIONS];
+            else if (m === 'drill') state.session = QUESTIONS.sort(() => Math.random() - 0.5).slice(0, 25);
+            else if (m === 'checkpoint') state.session = QUESTIONS.sort(() => Math.random() - 0.5).slice(0, 20);
+            else if (m === 'weak') {
+                let w = state.history.filter(h => !h.correct).map(h => QUESTIONS.find(q => q.id === h.id)).filter(Boolean);
+                state.session = w.length > 0 ? w : QUESTIONS.slice(0, 10);
+            }
+            
+            show('quizScreen');
+            next();
+        }
+        
+        function next() {
+            if (state.index >= state.session.length) {
+                show('resultsScreen');
+                let t = state.history.length;
+                let c = state.stats.correct;
+                document.getElementById('score').textContent = t > 0 ? Math.round(c/t*100) + '%' : '0%';
+                document.getElementById('correct').textContent = c;
+                document.getElementById('incorrect').textContent = state.stats.incorrect;
+                document.getElementById('bestStreak').textContent = state.stats.best;
+                update();
+                return;
+            }
+            
+            state.selected = null;
+            state.answered = false;
+            let q = state.session[state.index];
+            
+            document.getElementById('question').textContent = q.question;
+            let h = q.options.map((o, i) => `<div class="option" onclick="pick(${i})">${o}</div>`).join('');
+            document.getElementById('options').innerHTML = h;
+            document.getElementById('feedback').classList.remove('show', 'correct', 'incorrect');
+            document.getElementById('submitBtn').disabled = false;
+            
+            let p = ((state.index + 1) / state.session.length) * 100;
+            document.getElementById('progressBar').style.width = p + '%';
+            document.getElementById('progressText').textContent = state.index + 1 + ' / ' + state.session.length;
+        }
+        
+        function pick(i) {
+            if (state.answered) return;
+            state.selected = i;
+            document.querySelectorAll('.option').forEach((o, idx) => {
+                o.classList.toggle('active', idx === i);
+            });
+        }
+        
+        function submit() {
+            if (state.answered || state.selected === null) return;
+            state.answered = true;
+            
+            let q = state.session[state.index];
+            let ok = state.selected === q.correct;
+            
+            if (ok) {
+                state.stats.correct++;
+                state.stats.streak++;
+                state.stats.best = Math.max(state.stats.streak, state.stats.best);
+            } else {
+                state.stats.incorrect++;
+                state.stats.streak = 0;
+            }
+            
+            state.history.push({ id: q.id, correct: ok });
+            
+            let fb = document.getElementById('feedback');
+            fb.textContent = (ok ? '✓ Correct' : '✗ Incorrect') + ' — ' + q.explanation;
+            fb.classList.add('show', ok ? 'correct' : 'incorrect');
+            
+            document.querySelectorAll('.option').forEach((o, i) => {
+                o.classList.add('disabled');
+                if (i === q.correct) o.classList.add('correct');
+                if (i === state.selected && !ok) o.classList.add('incorrect');
+            });
+            
+            update();
+            document.getElementById('streak').textContent = state.stats.streak;
+            
+            setTimeout(() => { state.index++; next(); }, 2000);
+        }
+        
+        function update() {
+            let t = state.history.length;
+            let c = state.stats.correct;
+            document.getElementById('total').textContent = QUESTIONS.length;
+            document.getElementById('answered').textContent = t;
+            document.getElementById('accuracy').textContent = t > 0 ? Math.round(c/t*100) + '%' : '0%';
+        }
+        
+        function goBack() { show('startScreen'); update(); }
+        
+        update();
+    </script>
+</body>
+</html>
